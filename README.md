@@ -74,11 +74,13 @@ podling/
 │   │   ├── api/           # HTTP API handlers (Echo)
 │   │   ├── scheduler/     # Task scheduling logic
 │   │   └── state/         # State management
-│   │       ├── store.go       # In-memory state store
-│   │       └── store_test.go  # State store tests
 │   └── worker/            # Worker agent internals
 │       ├── agent/         # Worker agent logic
 │       └── docker/        # Docker SDK integration
+├── docs/                  # Documentation
+│   ├── postman/           # Postman collection for API testing
+│   ├── POSTMAN_GUIDE.md   # API testing guide
+│   └── SESSION_STATE.md   # Development session tracking
 ├── .air.toml              # Air hot reload configuration
 ├── Makefile               # Development commands
 └── go.mod                 # Go module definition
@@ -118,6 +120,17 @@ make build && ./bin/podling-master
 ```
 
 The master will start on `http://localhost:8080` with the following endpoints:
+
+### Testing with Postman
+
+Import the provided Postman collection to test all endpoints:
+
+1. Import `docs/postman/Podling.postman_collection.json` into Postman
+2. Import `docs/postman/Podling.postman_environment.json` for local environment
+3. Select "Podling - Local" environment
+4. Start testing the API
+
+See [Postman Guide](docs/POSTMAN_GUIDE.md) for detailed testing workflow.
 
 ### Endpoints
 
