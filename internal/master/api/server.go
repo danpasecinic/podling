@@ -6,11 +6,13 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// Server handles HTTP requests for the master API.
 type Server struct {
 	store     state.StateStore
 	scheduler scheduler.Scheduler
 }
 
+// NewServer creates a new API server with the given state store and scheduler.
 func NewServer(store state.StateStore, sched scheduler.Scheduler) *Server {
 	return &Server{
 		store:     store,
@@ -18,6 +20,8 @@ func NewServer(store state.StateStore, sched scheduler.Scheduler) *Server {
 	}
 }
 
+// RegisterRoutes registers all API endpoints with the Echo router.
+// Routes are grouped under /api/v1 for versioning.
 func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1 := e.Group("/api/v1")
 
