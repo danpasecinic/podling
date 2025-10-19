@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -403,7 +404,7 @@ func TestConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 
 			task := types.Task{
-				TaskID:    string(rune(id)),
+				TaskID:    fmt.Sprintf("task-%d", id),
 				Name:      "concurrent-task",
 				Image:     "nginx:alpine",
 				Status:    types.TaskPending,
