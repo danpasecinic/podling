@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/danpasecinic/podling/internal/master/api"
+	"github.com/danpasecinic/podling/internal/master/scheduler"
 	"github.com/danpasecinic/podling/internal/master/state"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -16,8 +18,10 @@ import (
 
 func main() {
 	store := state.NewInMemoryStore()
-	e := echo.New()
+	sched := scheduler.NewRoundRobin()
+	server := api.NewServer(store, sched)
 
+	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
@@ -33,35 +37,7 @@ func main() {
 		},
 	)
 
-	v1 := e.Group("/api/v1")
-
-	v1.GET(
-		"/tasks", func(c echo.Context) error {
-			tasks, err := store.ListTasks()
-			if err != nil {
-				return c.JSON(
-					http.StatusInternalServerError, map[string]string{
-						"error": err.Error(),
-					},
-				)
-			}
-			return c.JSON(http.StatusOK, tasks)
-		},
-	)
-
-	v1.GET(
-		"/nodes", func(c echo.Context) error {
-			nodes, err := store.ListNodes()
-			if err != nil {
-				return c.JSON(
-					http.StatusInternalServerError, map[string]string{
-						"error": err.Error(),
-					},
-				)
-			}
-			return c.JSON(http.StatusOK, nodes)
-		},
-	)
+	server.RegisterRoutes(e)
 
 	go func() {
 		if err := e.Start(":8080"); err != nil && !errors.Is(err, http.ErrServerClosed) {
