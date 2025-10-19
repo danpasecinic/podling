@@ -28,6 +28,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.1
+          install-mode: goinstall
           args: --timeout=5m
 
   test:
@@ -67,7 +68,7 @@ jobs:
           echo "✅ Coverage $COVERAGE% meets minimum requirement"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: success()
         with:
           files: ./coverage.out
