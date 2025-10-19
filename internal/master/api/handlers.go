@@ -1,6 +1,8 @@
 package api
 
 import (
+	cryptoRand "crypto/rand"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -197,7 +199,11 @@ func randString(n int) string {
 	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
+		idx, err := cryptoRand.Int(cryptoRand.Reader, big.NewInt(int64(len(letters))))
+		if err != nil {
+			panic(err)
+		}
+		b[i] = letters[idx.Int64()]
 	}
 	return string(b)
 }
