@@ -38,6 +38,10 @@ func (s *Server) CreateTask(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
 	}
 
+	if req.Name == "" || req.Image == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name and image are required"})
+	}
+
 	task := types.Task{
 		TaskID:    generateID(),
 		Name:      req.Name,
@@ -52,13 +56,21 @@ func (s *Server) CreateTask(c echo.Context) error {
 	}
 
 	if err := s.scheduleTask(task.TaskID); err != nil {
-		return c.JSON(http.StatusCreated, map[string]interface{}{
-			"task":            task,
+		updatedTask, _ := s.store.GetTask(task.TaskID)
+		response := map[string]interface{}{
+			"taskId":          updatedTask.TaskID,
+			"name":            updatedTask.Name,
+			"image":           updatedTask.Image,
+			"env":             updatedTask.Env,
+			"status":          updatedTask.Status,
+			"createdAt":       updatedTask.CreatedAt,
 			"schedulingError": err.Error(),
-		})
+		}
+		return c.JSON(http.StatusCreated, response)
 	}
 
-	return c.JSON(http.StatusCreated, task)
+	updatedTask, _ := s.store.GetTask(task.TaskID)
+	return c.JSON(http.StatusCreated, updatedTask)
 }
 
 // ListTasks handles GET /api/v1/tasks.
@@ -124,6 +136,10 @@ func (s *Server) RegisterNode(c echo.Context) error {
 	var req RegisterNodeRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+
+	if req.Hostname == "" || req.Port == 0 || req.Capacity == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "hostname, port, and capacity are required"})
 	}
 
 	node := types.Node{

@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -76,36 +77,38 @@ func TestRoundRobin_SelectNode(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rr := NewRoundRobin()
+		t.Run(
+			tt.name, func(t *testing.T) {
+				rr := NewRoundRobin()
 
-			callsToMake := 1
-			if tt.callCount > 0 {
-				callsToMake = tt.callCount
-			}
-
-			for i := 0; i < callsToMake; i++ {
-				node, err := rr.SelectNode(tt.task, tt.nodes)
-
-				if err != tt.wantErr {
-					t.Errorf("SelectNode() error = %v, wantErr %v", err, tt.wantErr)
-					return
+				callsToMake := 1
+				if tt.callCount > 0 {
+					callsToMake = tt.callCount
 				}
 
-				if tt.wantErr != nil {
-					return
-				}
+				for i := 0; i < callsToMake; i++ {
+					node, err := rr.SelectNode(tt.task, tt.nodes)
 
-				if node == nil {
-					t.Error("SelectNode() returned nil node when error was nil")
-					return
-				}
+					if !errors.Is(err, tt.wantErr) {
+						t.Errorf("SelectNode() error = %v, wantErr %v", err, tt.wantErr)
+						return
+					}
 
-				if tt.wantNode != "" && node.NodeID != tt.wantNode {
-					t.Errorf("SelectNode() nodeID = %v, want %v", node.NodeID, tt.wantNode)
+					if tt.wantErr != nil {
+						return
+					}
+
+					if node == nil {
+						t.Error("SelectNode() returned nil node when error was nil")
+						return
+					}
+
+					if tt.wantNode != "" && node.NodeID != tt.wantNode {
+						t.Errorf("SelectNode() nodeID = %v, want %v", node.NodeID, tt.wantNode)
+					}
 				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -218,20 +221,22 @@ func TestFilterAvailable(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := filterAvailable(tt.nodes)
-			if len(got) != tt.want {
-				t.Errorf("filterAvailable() returned %d nodes, want %d", len(got), tt.want)
-			}
+		t.Run(
+			tt.name, func(t *testing.T) {
+				got := filterAvailable(tt.nodes)
+				if len(got) != tt.want {
+					t.Errorf("filterAvailable() returned %d nodes, want %d", len(got), tt.want)
+				}
 
-			for _, node := range got {
-				if node.Status != types.NodeOnline {
-					t.Errorf("filterAvailable() returned offline node: %s", node.NodeID)
+				for _, node := range got {
+					if node.Status != types.NodeOnline {
+						t.Errorf("filterAvailable() returned offline node: %s", node.NodeID)
+					}
+					if node.RunningTasks >= node.Capacity {
+						t.Errorf("filterAvailable() returned node at capacity: %s", node.NodeID)
+					}
 				}
-				if node.RunningTasks >= node.Capacity {
-					t.Errorf("filterAvailable() returned node at capacity: %s", node.NodeID)
-				}
-			}
-		})
+			},
+		)
 	}
 }
