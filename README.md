@@ -19,7 +19,7 @@ controller with REST API, worker agents that manage containers via Docker, and a
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.25 or later
 - Docker Engine
 - Make (optional, for convenience)
 
