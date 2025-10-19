@@ -115,9 +115,10 @@ func (s *Server) UpdateTaskStatus(c echo.Context) error {
 		ContainerID: &req.ContainerID,
 	}
 
-	if req.Status == types.TaskRunning {
+	switch req.Status {
+	case types.TaskRunning:
 		update.StartedAt = &now
-	} else if req.Status == types.TaskCompleted || req.Status == types.TaskFailed {
+	case types.TaskCompleted, types.TaskFailed:
 		update.FinishedAt = &now
 		if req.Error != "" {
 			update.Error = &req.Error
