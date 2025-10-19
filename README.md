@@ -1,5 +1,9 @@
 # Podling
 
+[![CI](https://github.com/danpasecinic/podling/actions/workflows/ci.yml/badge.svg)](https://github.com/danpasecinic/podling/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/danpasecinic/podling)](https://goreportcard.com/report/github.com/danpasecinic/podling)
+[![codecov](https://codecov.io/gh/danpasecinic/podling/branch/main/graph/badge.svg)](https://codecov.io/gh/danpasecinic/podling)
+
 A lightweight, educational container orchestrator built from scratch in Go. Inspired by Kubernetes, it features a master
 controller with REST API, worker agents that manage containers via Docker, and a CLI tool.
 
