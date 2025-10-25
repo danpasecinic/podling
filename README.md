@@ -132,6 +132,32 @@ Import the provided Postman collection to test all endpoints:
 
 See [Postman Guide](docs/POSTMAN_GUIDE.md) for detailed testing workflow.
 
+### Running the Worker
+
+```bash
+# Build and run a worker node
+go build -o bin/podling-worker ./cmd/worker
+./bin/podling-worker -node-id=worker-1 -port=8081
+
+# Or use Make
+make build && ./bin/podling-worker -node-id=worker-1
+
+# Worker configuration options:
+# -node-id: Unique worker identifier (required)
+# -hostname: Worker hostname (default: localhost)
+# -port: Worker port (default: 8081)
+# -master-url: Master API URL (default: http://localhost:8080)
+# -heartbeat-interval: Heartbeat interval (default: 30s)
+# -shutdown-timeout: Graceful shutdown timeout (default: 30s)
+```
+
+The worker will:
+- Connect to the master and send periodic heartbeats
+- Execute tasks in Docker containers
+- Report task status back to master
+- Stream container logs via API
+- Handle graceful shutdown with task cleanup
+
 ### Endpoints
 
 #### Health Check
@@ -233,6 +259,40 @@ GET /api/v1/nodes
 curl http://localhost:8080/api/v1/nodes
 ```
 
+#### Worker Endpoints
+
+**Execute Task** - Execute a task on worker (called by master)
+
+```bash
+POST /api/v1/tasks/:id/execute
+Content-Type: application/json
+
+{
+  "task": {
+    "taskId": "task-id",
+    "name": "my-task",
+    "image": "nginx:latest",
+    "env": {"PORT": "8080"}
+  }
+}
+```
+
+**Get Task Status** - Get task execution status
+
+```bash
+GET /api/v1/tasks/:id/status
+
+curl http://localhost:8081/api/v1/tasks/task-id/status
+```
+
+**Get Task Logs** - Stream container logs
+
+```bash
+GET /api/v1/tasks/:id/logs?tail=100
+
+curl http://localhost:8081/api/v1/tasks/task-id/logs?tail=100
+```
+
 ### Task Status Flow
 
 Tasks progress through the following states:
@@ -270,13 +330,15 @@ pending → scheduled → running → completed/failed
 - [x] Add godoc comments for all exported types
 - [x] Validate with race detector
 
-### Phase 3: Worker Agent (Next)
+### Phase 3: Worker Agent ✅ COMPLETE
 
-- [ ] Build worker HTTP server
-- [ ] Integrate Docker SDK for container management
-- [ ] Implement task execution logic
-- [ ] Add heartbeat mechanism
-- [ ] Implement status reporting
+- [x] Build worker HTTP server with Echo
+- [x] Integrate Docker SDK for container management
+- [x] Implement task execution logic with status reporting
+- [x] Add heartbeat mechanism with exponential backoff
+- [x] Implement graceful shutdown with task cleanup
+- [x] Add container log streaming endpoint
+- [x] Write comprehensive tests (86.2% agent, 73.6% docker coverage)
 
 ### Phase 4: CLI Tool
 
@@ -308,7 +370,9 @@ go test -coverprofile=coverage.out ./...
 - State management: 94.7%
 - API handlers: 91.9%
 - Scheduler: 100%
-- Overall: >90%
+- Worker agent: 86.2%
+- Docker client: 73.6%
+- Overall: >85%
 
 ## Code Quality
 

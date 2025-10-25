@@ -22,8 +22,6 @@ build:
 	@go build -o bin/podling-master ./cmd/master
 	@echo "Building worker..."
 	@go build -o bin/podling-worker ./cmd/worker
-	@echo "Building CLI..."
-	@go build -o bin/podling ./cmd/podling
 	@echo "Build complete!"
 
 # Run master controller
