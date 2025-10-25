@@ -158,7 +158,7 @@ func TestGetTask(t *testing.T) {
 func TestHeartbeat(t *testing.T) {
 	var callCount int
 	var mu sync.Mutex
-	
+
 	server := httptest.NewServer(
 		http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
@@ -380,7 +380,7 @@ func TestConcurrentTaskAccess(t *testing.T) {
 				Image:  "nginx",
 				Status: types.TaskRunning,
 			}
-			
+
 			agent.mu.Lock()
 			agent.runningTasks[taskID] = task
 			agent.mu.Unlock()
@@ -409,12 +409,12 @@ func TestExecuteTaskWithMockServer(t *testing.T) {
 				if r.Method == http.MethodPut && r.URL.Path == "/api/v1/tasks/task-1/status" {
 					mu.Lock()
 					defer mu.Unlock()
-					
+
 					body, _ := io.ReadAll(r.Body)
 					var update map[string]interface{}
-					json.Unmarshal(body, &update)
+					_ = json.Unmarshal(body, &update)
 					statusUpdates = append(statusUpdates, update)
-					
+
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -479,12 +479,12 @@ func TestUpdateTaskStatus(t *testing.T) {
 				if r.Method == http.MethodPut {
 					mu.Lock()
 					defer mu.Unlock()
-					
+
 					body, _ := io.ReadAll(r.Body)
 					var req map[string]interface{}
-					json.Unmarshal(body, &req)
+					_ = json.Unmarshal(body, &req)
 					capturedRequests = append(capturedRequests, req)
-					
+
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -596,7 +596,7 @@ func TestExecuteTaskWithEnvVars(t *testing.T) {
 	// Execute and let it complete
 	done := make(chan struct{})
 	go func() {
-		agent.ExecuteTask(ctx, task)
+		_ = agent.ExecuteTask(ctx, task)
 		close(done)
 	}()
 
@@ -618,5 +618,3 @@ func TestExecuteTaskWithEnvVars(t *testing.T) {
 		t.Error("task execution timed out")
 	}
 }
-
-
