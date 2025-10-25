@@ -26,6 +26,104 @@ func TestNewAgent(t *testing.T) {
 	if agent.masterURL != "http://localhost:8080" {
 		t.Errorf("expected masterURL http://localhost:8080, got %s", agent.masterURL)
 	}
+	if agent.dockerClient == nil {
+		t.Error("expected docker client to be initialized")
+	}
+	if agent.runningTasks == nil {
+		t.Error("expected runningTasks map to be initialized")
+	}
+	if agent.consecutiveFailures != 0 {
+		t.Errorf("expected consecutiveFailures to be 0, got %d", agent.consecutiveFailures)
+	}
+	if agent.maxConsecutiveErrors != 10 {
+		t.Errorf("expected maxConsecutiveErrors to be 10, got %d", agent.maxConsecutiveErrors)
+	}
+}
+
+func TestExecuteTaskImagePullFailure(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			},
+		),
+	)
+	defer server.Close()
+
+	agent, err := NewAgent("test-node", server.URL)
+	if err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+	defer agent.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	task := &types.Task{
+		TaskID: "task-fail",
+		Name:   "test-fail",
+		Image:  "nonexistent-image-xyz123:latest",
+		Status: types.TaskPending,
+	}
+
+	err = agent.ExecuteTask(ctx, task)
+	if err == nil {
+		t.Error("expected error for nonexistent image")
+	}
+	if !contains(err.Error(), "failed to pull image") {
+		t.Errorf("expected 'failed to pull image' error, got: %v", err)
+	}
+}
+
+func TestExecuteTaskContainerFailure(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			},
+		),
+	)
+	defer server.Close()
+
+	agent, err := NewAgent("test-node", server.URL)
+	if err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+	defer agent.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Use an image that will start but exit with error
+	task := &types.Task{
+		TaskID: "task-exit-error",
+		Name:   "test-exit-error",
+		Image:  "alpine:latest",
+		Env: map[string]string{
+			"CMD": "exit 1",
+		},
+		Status: types.TaskPending,
+	}
+
+	// This should complete but task will fail with exit code 1
+	err = agent.ExecuteTask(ctx, task)
+	// No error returned as container lifecycle completed
+	if err != nil {
+		t.Errorf("ExecuteTask should not return error for exit code failure: %v", err)
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 func TestGetTask(t *testing.T) {
