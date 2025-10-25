@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -58,4 +59,29 @@ func (s *Server) GetTaskStatus(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, task)
+}
+
+// GetTaskLogs handles GET /api/v1/tasks/:id/logs
+// Returns container logs for a task.
+func (s *Server) GetTaskLogs(c echo.Context) error {
+	taskID := c.Param("id")
+	
+	// Get tail parameter (default 100 lines)
+	tail := 100
+	if tailParam := c.QueryParam("tail"); tailParam != "" {
+		if _, err := fmt.Sscanf(tailParam, "%d", &tail); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid tail parameter"})
+		}
+	}
+
+	logs, err := s.agent.GetTaskLogs(c.Request().Context(), taskID, tail)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"taskId": taskID,
+		"logs":   logs,
+		"tail":   tail,
+	})
 }

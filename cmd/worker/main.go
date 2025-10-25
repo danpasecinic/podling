@@ -24,6 +24,7 @@ func main() {
 	port := flag.Int("port", 8081, "Worker port")
 	masterURL := flag.String("master-url", "http://localhost:8080", "Master API URL")
 	heartbeatInterval := flag.Duration("heartbeat-interval", 30*time.Second, "Heartbeat interval")
+	shutdownTimeout := flag.Duration("shutdown-timeout", 30*time.Second, "Graceful shutdown timeout")
 
 	flag.Parse()
 	if *nodeID == "" {
@@ -71,14 +72,23 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	e.Logger.Info("shutting down server...")
+	log.Println("shutdown signal received, beginning graceful shutdown...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), *shutdownTimeout)
 	defer cancel()
 
-	if err := e.Shutdown(ctx); err != nil {
-		e.Logger.Fatal(err)
+	// Stop accepting new tasks and wait for running tasks
+	log.Println("stopping agent and waiting for running tasks...")
+	if err := workerAgent.Shutdown(ctx); err != nil {
+		log.Printf("warning: agent shutdown error: %v", err)
 	}
 
-	e.Logger.Info("server stopped")
+	// Shutdown HTTP server
+	log.Println("shutting down HTTP server...")
+	if err := e.Shutdown(ctx); err != nil {
+		log.Printf("error during server shutdown: %v", err)
+	}
+
+	log.Println("worker stopped gracefully")
 }

@@ -28,4 +28,5 @@ func (s *Server) RegisterRoutes(e *echo.Echo) {
 
 	v1.POST("/tasks/:id/execute", s.ExecuteTask)
 	v1.GET("/tasks/:id/status", s.GetTaskStatus)
+	v1.GET("/tasks/:id/logs", s.GetTaskLogs)
 }

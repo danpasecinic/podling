@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -113,4 +114,28 @@ func (c *Client) WaitContainer(ctx context.Context, containerID string) (int64, 
 		return status.StatusCode, nil
 	}
 	return 0, nil
+}
+
+// GetContainerLogs retrieves logs from a container.
+func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail int) (string, error) {
+	options := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Tail:       fmt.Sprintf("%d", tail),
+	}
+
+	reader, err := c.cli.ContainerLogs(ctx, containerID, options)
+	if err != nil {
+		return "", fmt.Errorf("failed to get logs for container %s: %w", containerID, err)
+	}
+	defer reader.Close()
+
+	// Read all logs
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read logs: %w", err)
+	}
+
+	return buf.String(), nil
 }
