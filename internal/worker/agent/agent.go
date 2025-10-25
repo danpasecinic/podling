@@ -58,7 +58,7 @@ func (a *Agent) Stop() {
 	}
 	close(a.stopChan)
 	if a.dockerClient != nil {
-		a.dockerClient.Close()
+		_ = a.dockerClient.Close()
 	}
 }
 
@@ -207,7 +207,7 @@ func (a *Agent) sendHeartbeat() error {
 	if err != nil {
 		return fmt.Errorf("failed to send heartbeat: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("heartbeat returned status %d", resp.StatusCode)
@@ -319,7 +319,7 @@ func (a *Agent) updateTaskStatus(taskID string, status types.TaskStatus, contain
 	if err != nil {
 		return fmt.Errorf("failed to send status update: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("status update returned status %d", resp.StatusCode)

@@ -39,7 +39,7 @@ func (c *Client) PullImage(ctx context.Context, imageName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to pull image %s: %w", imageName, err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Read all output to ensure pull completes
 	_, err = io.Copy(io.Discard, reader)
@@ -128,7 +128,7 @@ func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail 
 	if err != nil {
 		return "", fmt.Errorf("failed to get logs for container %s: %w", containerID, err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Read all logs
 	var buf bytes.Buffer

@@ -11,7 +11,7 @@ func TestNewClient(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if client == nil {
 		t.Fatal("expected non-nil client")
@@ -44,7 +44,7 @@ func TestPullImage(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -80,7 +80,7 @@ func TestCreateContainer(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -120,7 +120,7 @@ func TestCreateContainer(t *testing.T) {
 			}
 			// Clean up
 			if containerID != "" {
-				client.RemoveContainer(ctx, containerID)
+				_ = client.RemoveContainer(ctx, containerID)
 			}
 		})
 	}
@@ -131,7 +131,7 @@ func TestStartContainer(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -144,7 +144,7 @@ func TestStartContainer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create container: %v", err)
 	}
-	defer client.RemoveContainer(ctx, containerID)
+	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
 
 	// Start the container
 	err = client.StartContainer(ctx, containerID)
@@ -164,7 +164,7 @@ func TestStopContainer(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -177,7 +177,7 @@ func TestStopContainer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create container: %v", err)
 	}
-	defer client.RemoveContainer(ctx, containerID)
+	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
 
 	// Start then stop
 	if err := client.StartContainer(ctx, containerID); err != nil {
@@ -201,7 +201,7 @@ func TestRemoveContainer(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -233,7 +233,7 @@ func TestGetContainerStatus(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -246,7 +246,7 @@ func TestGetContainerStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create container: %v", err)
 	}
-	defer client.RemoveContainer(ctx, containerID)
+	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
 
 	// Get status before starting
 	status, err := client.GetContainerStatus(ctx, containerID)
@@ -282,7 +282,7 @@ func TestWaitContainer(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -295,7 +295,7 @@ func TestWaitContainer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create container: %v", err)
 	}
-	defer client.RemoveContainer(ctx, containerID)
+	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
 
 	if err := client.StartContainer(ctx, containerID); err != nil {
 		t.Fatalf("failed to start container: %v", err)
@@ -322,7 +322,7 @@ func TestGetContainerLogs(t *testing.T) {
 	if err != nil {
 		t.Skipf("Docker not available: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -335,7 +335,7 @@ func TestGetContainerLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create container: %v", err)
 	}
-	defer client.RemoveContainer(ctx, containerID)
+	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
 
 	if err := client.StartContainer(ctx, containerID); err != nil {
 		t.Fatalf("failed to start container: %v", err)
