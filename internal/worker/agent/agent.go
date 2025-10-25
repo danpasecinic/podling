@@ -66,27 +66,25 @@ func (a *Agent) Stop() {
 func (a *Agent) Shutdown(ctx context.Context) error {
 	log.Printf("shutdown initiated, waiting for %d running tasks...", len(a.runningTasks))
 
-	// Stop heartbeat immediately
 	if a.heartbeatTicker != nil {
 		a.heartbeatTicker.Stop()
 	}
 
-	// Wait for running tasks to complete or timeout
 	done := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
-		
+
 		for {
 			a.mu.RLock()
 			count := len(a.runningTasks)
 			a.mu.RUnlock()
-			
+
 			if count == 0 {
 				close(done)
 				return
 			}
-			
+
 			select {
 			case <-ticker.C:
 				log.Printf("waiting for %d tasks to complete...", count)
@@ -104,20 +102,19 @@ func (a *Agent) Shutdown(ctx context.Context) error {
 		remaining := len(a.runningTasks)
 		a.mu.RUnlock()
 		log.Printf("shutdown timeout reached, %d tasks still running", remaining)
-		
-		// Force cleanup remaining containers
+
 		a.cleanupRunningTasks(context.Background())
 	}
 
-	// Send final heartbeat (best effort)
 	if err := a.sendHeartbeat(); err != nil {
 		log.Printf("failed to send final heartbeat: %v", err)
 	}
 
-	// Close resources
 	close(a.stopChan)
 	if a.dockerClient != nil {
-		a.dockerClient.Close()
+		if err := a.dockerClient.Close(); err != nil {
+			log.Printf("failed to close docker client: %v", err)
+		}
 	}
 
 	return nil
@@ -169,7 +166,6 @@ func (a *Agent) sendHeartbeatWithRetry() error {
 	for i := 0; i < maxRetries; i++ {
 		err := a.sendHeartbeat()
 		if err == nil {
-			// Success - reset failure counter
 			if a.consecutiveFailures > 0 {
 				log.Printf("heartbeat recovered after %d failures", a.consecutiveFailures)
 				a.consecutiveFailures = 0
@@ -187,8 +183,7 @@ func (a *Agent) sendHeartbeatWithRetry() error {
 		if i < maxRetries-1 {
 			log.Printf("heartbeat attempt %d/%d failed: %v, retrying in %v", i+1, maxRetries, err, backoff)
 			time.Sleep(backoff)
-			
-			// Exponential backoff with max cap
+
 			backoff *= 2
 			if backoff > maxBackoff {
 				backoff = maxBackoff
@@ -233,62 +228,60 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 		a.mu.Unlock()
 	}()
 
-	// Update status to running
 	if err := a.updateTaskStatus(task.TaskID, types.TaskRunning, "", ""); err != nil {
 		log.Printf("failed to update task status to running: %v", err)
 	}
 
-	// Pull image
-	log.Printf("pulling image %s for task %s", task.Image, task.TaskID)
 	if err := a.dockerClient.PullImage(ctx, task.Image); err != nil {
-		a.updateTaskStatus(task.TaskID, types.TaskFailed, "", err.Error())
+		if updateErr := a.updateTaskStatus(task.TaskID, types.TaskFailed, "", err.Error()); updateErr != nil {
+			log.Printf("failed to update task status: %v", updateErr)
+		}
 		return fmt.Errorf("failed to pull image: %w", err)
 	}
 
-	// Convert env map to slice
 	env := make([]string, 0, len(task.Env))
 	for k, v := range task.Env {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// Create container
-	log.Printf("creating container for task %s", task.TaskID)
 	containerID, err := a.dockerClient.CreateContainer(ctx, task.Image, env)
 	if err != nil {
-		a.updateTaskStatus(task.TaskID, types.TaskFailed, "", err.Error())
+		if updateErr := a.updateTaskStatus(task.TaskID, types.TaskFailed, "", err.Error()); updateErr != nil {
+			log.Printf("failed to update task status: %v", updateErr)
+		}
 		return fmt.Errorf("failed to create container: %w", err)
 	}
 
-	// Start container
-	log.Printf("starting container %s for task %s", containerID, task.TaskID)
 	if err := a.dockerClient.StartContainer(ctx, containerID); err != nil {
-		a.updateTaskStatus(task.TaskID, types.TaskFailed, containerID, err.Error())
+		if updateErr := a.updateTaskStatus(task.TaskID, types.TaskFailed, containerID, err.Error()); updateErr != nil {
+			log.Printf("failed to update task status: %v", updateErr)
+		}
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	// Update status with container ID
 	if err := a.updateTaskStatus(task.TaskID, types.TaskRunning, containerID, ""); err != nil {
 		log.Printf("failed to update task with container ID: %v", err)
 	}
 
-	// Wait for container to finish
 	exitCode, err := a.dockerClient.WaitContainer(ctx, containerID)
 	if err != nil {
-		a.updateTaskStatus(task.TaskID, types.TaskFailed, containerID, err.Error())
+		if updateErr := a.updateTaskStatus(task.TaskID, types.TaskFailed, containerID, err.Error()); updateErr != nil {
+			log.Printf("failed to update task status: %v", updateErr)
+		}
 		return fmt.Errorf("error waiting for container: %w", err)
 	}
 
-	// Update final status
 	if exitCode == 0 {
-		log.Printf("task %s completed successfully", task.TaskID)
-		a.updateTaskStatus(task.TaskID, types.TaskCompleted, containerID, "")
+		if err := a.updateTaskStatus(task.TaskID, types.TaskCompleted, containerID, ""); err != nil {
+			log.Printf("failed to update task status: %v", err)
+		}
 	} else {
 		errMsg := fmt.Sprintf("container exited with code %d", exitCode)
-		log.Printf("task %s failed: %s", task.TaskID, errMsg)
-		a.updateTaskStatus(task.TaskID, types.TaskFailed, containerID, errMsg)
+		if err := a.updateTaskStatus(task.TaskID, types.TaskFailed, containerID, errMsg); err != nil {
+			log.Printf("failed to update task status: %v", err)
+		}
 	}
 
-	// Cleanup container
 	if err := a.dockerClient.RemoveContainer(ctx, containerID); err != nil {
 		log.Printf("failed to remove container %s: %v", containerID, err)
 	}
