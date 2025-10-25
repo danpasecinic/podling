@@ -316,3 +316,50 @@ func TestWaitContainer(t *testing.T) {
 		t.Error("WaitContainer() expected error for invalid container ID")
 	}
 }
+
+func TestGetContainerLogs(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Pull and create a container that produces output
+	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
+		t.Fatalf("failed to pull alpine image: %v", err)
+	}
+
+	containerID, err := client.CreateContainer(ctx, "alpine:latest", []string{})
+	if err != nil {
+		t.Fatalf("failed to create container: %v", err)
+	}
+	defer client.RemoveContainer(ctx, containerID)
+
+	if err := client.StartContainer(ctx, containerID); err != nil {
+		t.Fatalf("failed to start container: %v", err)
+	}
+
+	// Wait for container to finish
+	_, err = client.WaitContainer(ctx, containerID)
+	if err != nil {
+		t.Fatalf("failed to wait for container: %v", err)
+	}
+
+	// Get logs (even if empty)
+	logs, err := client.GetContainerLogs(ctx, containerID, 100)
+	if err != nil {
+		t.Errorf("GetContainerLogs() error = %v", err)
+	}
+
+	// Logs may be empty for alpine, that's OK
+	_ = logs
+
+	// Test with invalid container
+	_, err = client.GetContainerLogs(ctx, "invalid-container-id", 100)
+	if err == nil {
+		t.Error("GetContainerLogs() expected error for invalid container ID")
+	}
+}
+
