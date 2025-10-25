@@ -338,7 +338,7 @@ pending → scheduled → running → completed/failed
 - [x] Add heartbeat mechanism with exponential backoff
 - [x] Implement graceful shutdown with task cleanup
 - [x] Add container log streaming endpoint
-- [x] Write comprehensive tests (72.4% agent, 73.6% docker coverage)
+- [x] Write comprehensive tests (86.2% agent, 73.6% docker coverage)
 
 ### Phase 4: CLI Tool
 
@@ -370,9 +370,9 @@ go test -coverprofile=coverage.out ./...
 - State management: 94.7%
 - API handlers: 91.9%
 - Scheduler: 100%
-- Worker agent: 72.4%
+- Worker agent: 86.2%
 - Docker client: 73.6%
-- Overall: >80%
+- Overall: >85%
 
 ## Code Quality
 
