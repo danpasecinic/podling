@@ -1,6 +1,6 @@
 # Postman API Testing Guide
 
-This guide shows how to use the Postman collection to test the Podling API.
+This guide shows how to use the Postman collection to test the Podling API (Master + Worker).
 
 ## Setup
 
@@ -17,57 +17,64 @@ This guide shows how to use the Postman collection to test the Podling API.
 1. Click the environment dropdown (top right)
 2. Select **Podling - Local**
 3. Ensure the master is running on `http://localhost:8080`
+4. Ensure the worker is running on `http://localhost:8081`
 
 ## Testing Workflow
 
-### Step 1: Health Check
+### Step 1: Health Checks
 
-Test that the master is running:
+Test that both master and worker are running:
 
+**Master Health:**
 ```
-GET /health
+GET /health (Master - Health Check)
 ```
 
-Expected response:
+**Worker Health:**
+```
+GET /health (Worker - Health Check)
+```
+
+Expected responses:
 ```json
 {
   "status": "ok",
-  "service": "podling-master"
+  "service": "podling-master" // or "podling-worker"
 }
 ```
 
 ### Step 2: Register a Worker Node
 
-Register a worker node before creating tasks:
+Register the worker node with the master:
 
 ```
-POST /api/v1/nodes/register
+POST /api/v1/nodes/register (Master - Nodes > Register Node)
 ```
 
 Request body:
 ```json
 {
-  "hostname": "worker-1",
+  "hostname": "localhost",
   "port": 8081,
   "capacity": 10
 }
 ```
 
-Response includes `nodeId` - save this for heartbeat requests.
+Response includes `nodeId` - **copy this to the `node_id` environment variable**.
 
 ### Step 3: Create a Task
 
 Submit a task for execution:
 
 ```
-POST /api/v1/tasks
+POST /api/v1/tasks (Master - Tasks > Create Task)
 ```
 
 Request body:
 ```json
 {
   "name": "nginx-task",
-  "image": "nginx:latest",
+  "image": "nginx:alpine",
   "env": {
     "PORT": "8080"
   }
@@ -75,35 +82,56 @@ Request body:
 ```
 
 Response includes:
-- `taskId` - save this for status updates
+- `taskId` - **copy this to the `task_id` environment variable**
 - `status` - should be "scheduled" if node available
 - `nodeId` - the node assigned to run this task
 
-### Step 4: List All Tasks
+### Step 4: Worker Executes Task (Optional Manual Test)
+
+If you want to manually trigger task execution on the worker:
+
+```
+POST /api/v1/tasks/:taskId/execute (Worker - Tasks > Execute Task)
+```
+
+This is normally called by the master's scheduler. The worker will:
+1. Pull the Docker image
+2. Create and start the container
+3. Report status back to master
+
+### Step 5: List All Tasks
 
 View all tasks:
 
 ```
-GET /api/v1/tasks
+GET /api/v1/tasks (Master - Tasks > List Tasks)
 ```
 
-### Step 5: Get Specific Task
+### Step 6: Get Specific Task
 
-Get task details using the `taskId` from Step 3:
+Get task details:
 
 ```
-GET /api/v1/tasks/:taskId
+GET /api/v1/tasks/:taskId (Master - Tasks > Get Task)
 ```
 
-Update the `:taskId` path variable with your actual task ID.
+The `{{task_id}}` variable will be used automatically.
 
-### Step 6: Update Task Status
+### Step 7: Check Worker Task Status
 
-Simulate worker updating task status:
+Check task status on the worker:
+
+```
+GET /api/v1/tasks/:taskId/status (Worker - Tasks > Get Task Status)
+```
+
+### Step 8: Update Task Status
+
+Simulate worker updating task status (normally done automatically):
 
 **Mark as Running:**
 ```
-PUT /api/v1/tasks/:taskId/status
+PUT /api/v1/tasks/:taskId/status (Master - Tasks > Update Task Status)
 ```
 
 Body:
@@ -129,23 +157,34 @@ Body:
 }
 ```
 
-### Step 7: Send Heartbeat
+### Step 9: Send Heartbeat
 
 Keep node alive with heartbeat:
 
 ```
-POST /api/v1/nodes/:nodeId/heartbeat
+POST /api/v1/nodes/:nodeId/heartbeat (Master - Nodes > Node Heartbeat)
 ```
 
-Update the `:nodeId` path variable with your node ID from Step 2.
+The `{{node_id}}` variable will be used automatically.
 
-### Step 8: List All Nodes
+### Step 10: List All Nodes
 
 View all registered nodes:
 
 ```
-GET /api/v1/nodes
+GET /api/v1/nodes (Master - Nodes > List Nodes)
 ```
+
+## Complete Testing Scenario
+
+1. **Start Services**: Run master on 8080, worker on 8081
+2. **Health Checks**: Verify both are running
+3. **Register Worker**: Get node ID, save to environment
+4. **Create Task**: Get task ID, save to environment
+5. **Worker Executes**: Task runs in Docker container
+6. **Monitor Progress**: Check task status on master and worker
+7. **Heartbeat**: Worker sends periodic heartbeats
+8. **View Results**: List all tasks and nodes
 
 ## Task Status Flow
 
