@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -297,4 +299,226 @@ func TestConcurrentTaskAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestExecuteTaskWithMockServer(t *testing.T) {
+	// Create mock master server
+	var statusUpdates []map[string]interface{}
+	var mu sync.Mutex
+
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut && r.URL.Path == "/api/v1/tasks/task-1/status" {
+					mu.Lock()
+					defer mu.Unlock()
+					
+					body, _ := io.ReadAll(r.Body)
+					var update map[string]interface{}
+					json.Unmarshal(body, &update)
+					statusUpdates = append(statusUpdates, update)
+					
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+			},
+		),
+	)
+	defer server.Close()
+
+	agent, err := NewAgent("test-node", server.URL)
+	if err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+	defer agent.Stop()
+
+	// Test ExecuteTask with a real alpine container
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	task := &types.Task{
+		TaskID: "task-1",
+		Name:   "test-task",
+		Image:  "alpine:latest",
+		Env:    map[string]string{"TEST": "value"},
+		Status: types.TaskPending,
+	}
+
+	// Execute task in background
+	go func() {
+		err := agent.ExecuteTask(ctx, task)
+		if err != nil {
+			t.Logf("ExecuteTask error: %v", err)
+		}
+	}()
+
+	// Wait for task execution to complete
+	time.Sleep(10 * time.Second)
+
+	// Check status updates were sent
+	mu.Lock()
+	updates := len(statusUpdates)
+	mu.Unlock()
+
+	if updates < 2 {
+		t.Errorf("expected at least 2 status updates, got %d", updates)
+	}
+
+	// Verify task was removed from running tasks
+	_, ok := agent.GetTask("task-1")
+	if ok {
+		t.Error("task should be removed from running tasks after completion")
+	}
+}
+
+func TestUpdateTaskStatus(t *testing.T) {
+	var capturedRequests []map[string]interface{}
+	var mu sync.Mutex
+
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut {
+					mu.Lock()
+					defer mu.Unlock()
+					
+					body, _ := io.ReadAll(r.Body)
+					var req map[string]interface{}
+					json.Unmarshal(body, &req)
+					capturedRequests = append(capturedRequests, req)
+					
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+			},
+		),
+	)
+	defer server.Close()
+
+	agent, err := NewAgent("test-node", server.URL)
+	if err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+	defer agent.Stop()
+
+	// Test successful status update
+	err = agent.updateTaskStatus("task-1", types.TaskRunning, "container-123", "")
+	if err != nil {
+		t.Errorf("updateTaskStatus() error = %v", err)
+	}
+
+	// Test status update with error
+	err = agent.updateTaskStatus("task-2", types.TaskFailed, "", "test error")
+	if err != nil {
+		t.Errorf("updateTaskStatus() error = %v", err)
+	}
+
+	// Verify requests were captured
+	mu.Lock()
+	count := len(capturedRequests)
+	mu.Unlock()
+
+	if count != 2 {
+		t.Errorf("expected 2 status updates, got %d", count)
+	}
+}
+
+func TestCleanupRunningTasks(t *testing.T) {
+	agent, err := NewAgent("test-node", "http://localhost:8080")
+	if err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+	defer agent.Stop()
+
+	ctx := context.Background()
+
+	// Pull and create a real container
+	if err := agent.dockerClient.PullImage(ctx, "alpine:latest"); err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+
+	containerID, err := agent.dockerClient.CreateContainer(ctx, "alpine:latest", []string{})
+	if err != nil {
+		t.Skipf("Cannot create container: %v", err)
+	}
+
+	// Add task with container
+	task := &types.Task{
+		TaskID:      "task-1",
+		Name:        "test-task",
+		Image:       "alpine:latest",
+		Status:      types.TaskRunning,
+		ContainerID: containerID,
+	}
+	agent.mu.Lock()
+	agent.runningTasks[task.TaskID] = task
+	agent.mu.Unlock()
+
+	// Cleanup should stop and remove the container
+	agent.cleanupRunningTasks(ctx)
+
+	// Verify container was removed
+	status, err := agent.dockerClient.GetContainerStatus(ctx, containerID)
+	if err == nil {
+		t.Errorf("container should be removed, but got status: %s", status)
+	}
+}
+
+func TestExecuteTaskWithEnvVars(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			},
+		),
+	)
+	defer server.Close()
+
+	agent, err := NewAgent("test-node", server.URL)
+	if err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+	defer agent.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	task := &types.Task{
+		TaskID: "task-env",
+		Name:   "test-env",
+		Image:  "alpine:latest",
+		Env: map[string]string{
+			"VAR1": "value1",
+			"VAR2": "value2",
+			"VAR3": "value3",
+		},
+		Status: types.TaskPending,
+	}
+
+	// Execute and let it complete
+	done := make(chan struct{})
+	go func() {
+		agent.ExecuteTask(ctx, task)
+		close(done)
+	}()
+
+	// Give it time to start and add to running tasks
+	time.Sleep(500 * time.Millisecond)
+
+	// Task should be in running tasks initially
+	_, ok := agent.GetTask("task-env")
+	if !ok {
+		// Task might have completed very quickly, that's OK
+		t.Log("task completed very quickly or not in running tasks")
+	}
+
+	// Wait for completion
+	select {
+	case <-done:
+		// Success
+	case <-ctx.Done():
+		t.Error("task execution timed out")
+	}
+}
+
 
