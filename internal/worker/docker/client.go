@@ -130,7 +130,6 @@ func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail 
 	}
 	defer func() { _ = reader.Close() }()
 
-	// Read all logs
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, reader)
 	if err != nil {
