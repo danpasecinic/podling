@@ -3,7 +3,50 @@
 ## System Architecture
 
 ```mermaid
+graph TB
+    subgraph "User Interface"
+        CLI[CLI Tool<br/>podling]
+    end
 
+    subgraph "Control Plane - Master :8080"
+        API[REST API<br/>Echo Framework]
+        Scheduler[Scheduler<br/>Task Assignment]
+        State[State Manager<br/>Thread-Safe Store]
+        
+        API --> Scheduler
+        API --> State
+        Scheduler --> State
+    end
+
+    subgraph "Data Plane - Workers"
+        W1[Worker Agent :8081<br/>Node Registration<br/>Heartbeats]
+        W2[Worker Agent :8082<br/>Node Registration<br/>Heartbeats]
+        W3[Worker Agent :8083<br/>Node Registration<br/>Heartbeats]
+        
+        D1[Docker Engine<br/>Container Runtime]
+        D2[Docker Engine<br/>Container Runtime]
+        D3[Docker Engine<br/>Container Runtime]
+        
+        W1 --> D1
+        W2 --> D2
+        W3 --> D3
+    end
+
+    CLI -->|HTTP| API
+    Scheduler -->|Assign Tasks| W1
+    Scheduler -->|Assign Tasks| W2
+    Scheduler -->|Assign Tasks| W3
+    W1 -.->|Heartbeat| State
+    W2 -.->|Heartbeat| State
+    W3 -.->|Heartbeat| State
+    
+    style CLI fill:#e1f5ff
+    style API fill:#ffe1e1
+    style Scheduler fill:#ffe1e1
+    style State fill:#ffe1e1
+    style W1 fill:#e1ffe1
+    style W2 fill:#e1ffe1
+    style W3 fill:#e1ffe1
 ```
 
 ## Task Lifecycle Flow
