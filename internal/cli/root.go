@@ -23,6 +23,7 @@ via Docker, and this CLI tool for interacting with the system.`,
 	Version: "0.1.0",
 }
 
+// Execute executes the root command.
 func Execute() error {
 	return rootCmd.Execute()
 }
@@ -37,11 +38,9 @@ func init() {
 
 func initConfig() {
 	if cfgFile != "" {
-		// Use config file from the flag
 		fmt.Fprintf(os.Stderr, "Using config file: %s\n", cfgFile)
 	}
 
-	// Check environment variable for master URL
 	if envMaster := os.Getenv("PODLING_MASTER_URL"); envMaster != "" && masterURL == "http://localhost:8080" {
 		masterURL = envMaster
 	}
