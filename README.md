@@ -152,6 +152,7 @@ make build && ./bin/podling-worker -node-id=worker-1
 ```
 
 The worker will:
+
 - Connect to the master and send periodic heartbeats
 - Execute tasks in Docker containers
 - Report task status back to master
@@ -307,45 +308,107 @@ pending → scheduled → running → completed/failed
 - **completed**: Task finished successfully
 - **failed**: Task execution failed
 
-## Development Progress
+## CLI Usage
 
-### Phase 1: Foundation ✅ COMPLETE
+The `podling` CLI provides a user-friendly interface to interact with the Podling orchestrator.
 
-- [x] Set up Go project following golang-standards/project-layout
-- [x] Define core data models (Task and Node)
-- [x] Implement thread-safe in-memory state store with mutex protection
-- [x] Write comprehensive unit tests (94.7% coverage)
-- [x] Validate concurrent access with race detector
-- [x] Add Echo framework for HTTP server
-- [x] Configure Air for hot reloading
-- [x] Create Makefile for development workflow
+### Installation
 
-### Phase 2: Master Controller ✅ COMPLETE
+```bash
+# Build the CLI
+make build
 
-- [x] Build Echo-based HTTP API server
-- [x] Implement all REST API endpoints (7 total)
-- [x] Build round-robin scheduler
-- [x] Add automatic task scheduling on creation
-- [x] Write comprehensive tests (91.9% API coverage, 100% scheduler coverage)
-- [x] Add godoc comments for all exported types
-- [x] Validate with race detector
+# The binary will be at bin/podling
+# Optionally, add it to your PATH
+cp bin/podling /usr/local/bin/
+```
 
-### Phase 3: Worker Agent ✅ COMPLETE
+### Configuration
 
-- [x] Build worker HTTP server with Echo
-- [x] Integrate Docker SDK for container management
-- [x] Implement task execution logic with status reporting
-- [x] Add heartbeat mechanism with exponential backoff
-- [x] Implement graceful shutdown with task cleanup
-- [x] Add container log streaming endpoint
-- [x] Write comprehensive tests (86.2% agent, 73.6% docker coverage)
+The CLI can be configured via:
 
-### Phase 4: CLI Tool
+1. **Command-line flags**: `--master http://localhost:8080`
+2. **Environment variables**: `PODLING_MASTER_URL=http://localhost:8080`
+3. **Config file**: `~/.podling.yaml` (future enhancement)
 
-- [ ] Build CLI using cobra or similar
-- [ ] Implement `podling run` command
-- [ ] Implement `podling ps` command
-- [ ] Implement `podling nodes` command
+### Commands
+
+#### Run a Task
+
+Submit a new task to run a container:
+
+```bash
+# Basic usage
+podling run my-nginx --image nginx:latest
+
+# With environment variables
+podling run my-redis --image redis:latest --env PORT=6379 --env MODE=standalone
+
+# With custom master URL
+podling --master http://production:8080 run my-task --image alpine:latest
+```
+
+#### List Tasks
+
+View all tasks or get details of a specific task:
+
+```bash
+# List all tasks
+podling ps
+
+# Get detailed info for a specific task
+podling ps --task <task-id>
+podling ps -t <task-id>
+```
+
+Output example:
+
+```
+ID                      NAME       IMAGE          STATUS     NODE        CREATED
+20250119123456-abc123   my-nginx   nginx:latest   running    worker-1    2m
+20250119123457-def456   my-redis   redis:latest   completed  worker-2    5m
+```
+
+#### List Worker Nodes
+
+View all registered worker nodes:
+
+```bash
+# List all nodes
+podling nodes
+
+# With verbose output
+podling nodes --verbose
+```
+
+Output example:
+
+```
+ID          HOSTNAME    PORT   STATUS   CAPACITY   TASKS   LAST HEARTBEAT
+worker-1    localhost   8081   online   10         2       30s ago
+worker-2    localhost   8082   online   10         1       25s ago
+```
+
+#### View Task Logs
+
+Fetch container logs for a running task:
+
+```bash
+# Get logs (last 100 lines by default)
+podling logs <task-id>
+
+# Limit output
+podling logs <task-id> --tail 50
+```
+
+### Global Flags
+
+All commands support these global flags:
+
+- `--master string`: Master API URL (default "http://localhost:8080")
+- `--verbose, -v`: Enable verbose output
+- `--config string`: Config file location (default "$HOME/.podling.yaml")
+- `--help, -h`: Show help for any command
 
 ## Testing
 
@@ -395,15 +458,6 @@ make build
 # - bin/podling-worker
 # - bin/podling
 ```
-
-## Contributing
-
-This is an educational project. Contributions are welcome! Please:
-
-1. Follow Go best practices
-2. Maintain test coverage above 60%
-3. Run `make fmt` before committing
-4. Ensure all tests pass with `make test-race`
 
 ## License
 

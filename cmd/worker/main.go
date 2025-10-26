@@ -18,7 +18,6 @@ import (
 )
 
 func main() {
-	// Parse command line flags
 	nodeID := flag.String("node-id", "", "Node ID (required)")
 	hostname := flag.String("hostname", "localhost", "Worker hostname")
 	port := flag.Int("port", 8081, "Worker port")
@@ -74,17 +73,14 @@ func main() {
 
 	log.Println("shutdown signal received, beginning graceful shutdown...")
 
-	// Create shutdown context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), *shutdownTimeout)
 	defer cancel()
 
-	// Stop accepting new tasks and wait for running tasks
 	log.Println("stopping agent and waiting for running tasks...")
 	if err := workerAgent.Shutdown(ctx); err != nil {
 		log.Printf("warning: agent shutdown error: %v", err)
 	}
 
-	// Shutdown HTTP server
 	log.Println("shutting down HTTP server...")
 	if err := e.Shutdown(ctx); err != nil {
 		log.Printf("error during server shutdown: %v", err)
