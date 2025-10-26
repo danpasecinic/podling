@@ -76,7 +76,7 @@ var psCmd = &cobra.Command{
 				nodeID = "-"
 			}
 
-			fmt.Fprintf(
+			_, _ = fmt.Fprintf(
 				w, "%s\t%s\t%s\t%s\t%s\t%s\n",
 				task.TaskID,
 				task.Name,

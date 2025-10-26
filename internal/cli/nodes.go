@@ -33,7 +33,7 @@ var nodesCmd = &cobra.Command{
 			lastHeartbeat := time.Since(node.LastHeartbeat)
 			heartbeatStr := formatDuration(lastHeartbeat)
 
-			fmt.Fprintf(
+			_, _ = fmt.Fprintf(
 				w, "%s\t%s\t%d\t%s\t%d\t%d\t%s ago\n",
 				node.NodeID,
 				node.Hostname,

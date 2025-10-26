@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -46,19 +45,19 @@ var runCmd = &cobra.Command{
 			return fmt.Errorf("failed to create task: %w", err)
 		}
 
-		fmt.Fprintf(os.Stdout, "Task created successfully:\n")
-		fmt.Fprintf(os.Stdout, "  ID:     %s\n", task.TaskID)
-		fmt.Fprintf(os.Stdout, "  Name:   %s\n", task.Name)
-		fmt.Fprintf(os.Stdout, "  Image:  %s\n", task.Image)
-		fmt.Fprintf(os.Stdout, "  Status: %s\n", task.Status)
+		fmt.Println("Task created successfully:")
+		fmt.Printf("  ID:     %s\n", task.TaskID)
+		fmt.Printf("  Name:   %s\n", task.Name)
+		fmt.Printf("  Image:  %s\n", task.Image)
+		fmt.Printf("  Status: %s\n", task.Status)
 		if task.NodeID != "" {
-			fmt.Fprintf(os.Stdout, "  Node:   %s\n", task.NodeID)
+			fmt.Printf("  Node:   %s\n", task.NodeID)
 		}
 
 		if IsVerbose() {
-			fmt.Fprintf(os.Stdout, "\nEnvironment variables:\n")
+			fmt.Println("\nEnvironment variables:")
 			for k, v := range task.Env {
-				fmt.Fprintf(os.Stdout, "  %s=%s\n", k, v)
+				fmt.Printf("  %s=%s\n", k, v)
 			}
 		}
 
