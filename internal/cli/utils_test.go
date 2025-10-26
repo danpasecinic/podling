@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -245,4 +246,106 @@ func TestExecute(t *testing.T) {
 			// Actual CLI testing would require integration tests
 		},
 	)
+}
+
+func TestInitConfig_AllBranches(t *testing.T) {
+	t.Run(
+		"initConfig with config file", func(t *testing.T) {
+			tmpfile, err := os.CreateTemp("", "podling-*.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = os.Remove(tmpfile.Name()) }()
+
+			_, _ = tmpfile.WriteString("master: http://config-file:8080\n")
+			_ = tmpfile.Close()
+
+			oldCfg := cfgFile
+			oldMaster := masterURL
+			cfgFile = tmpfile.Name()
+			masterURL = "http://localhost:8080"
+
+			initConfig()
+
+			// Restore
+			cfgFile = oldCfg
+			masterURL = oldMaster
+		},
+	)
+
+	t.Run(
+		"initConfig reads PODLING_MASTER_URL from env", func(t *testing.T) {
+			oldMaster := masterURL
+			masterURL = "http://localhost:8080"
+
+			t.Setenv("PODLING_MASTER_URL", "http://env-test:9090")
+
+			initConfig()
+
+			if masterURL != "http://env-test:9090" {
+				t.Errorf("initConfig() didn't read env var, got %s", masterURL)
+			}
+
+			masterURL = oldMaster
+		},
+	)
+}
+
+func TestFormatDuration_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration time.Duration
+		expected string
+	}{
+		{"0 seconds", 0, "0s"},
+		{"59 seconds", 59 * time.Second, "59s"},
+		{"90 seconds", 90 * time.Second, "1m"},
+		{"3599 seconds", 3599 * time.Second, "59m"},
+		{"7200 seconds", 7200 * time.Second, "2h"},
+		{"25 hours", 25 * time.Hour, "1d"},
+		{"48 hours", 48 * time.Hour, "2d"},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				result := formatDuration(tt.duration)
+				if result != tt.expected {
+					t.Errorf("formatDuration(%v) = %v, want %v", tt.duration, result, tt.expected)
+				}
+			},
+		)
+	}
+}
+
+func TestGetMasterURL_EdgeCases(t *testing.T) {
+	t.Run(
+		"master URL set via flag takes precedence", func(t *testing.T) {
+			oldURL := masterURL
+			masterURL = "http://flag-url:8080"
+			defer func() { masterURL = oldURL }()
+
+			t.Setenv("PODLING_MASTER_URL", "http://env-url:8080")
+
+			result := GetMasterURL()
+			if result != "http://flag-url:8080" {
+				t.Errorf("expected flag URL to take precedence, got %s", result)
+			}
+		},
+	)
+}
+
+func TestIsVerbose_Multiple(t *testing.T) {
+	oldVerbose := verbose
+	defer func() { verbose = oldVerbose }()
+
+	verbose = false
+	if IsVerbose() {
+		t.Error("IsVerbose() should be false")
+	}
+
+	verbose = true
+	if !IsVerbose() {
+		t.Error("IsVerbose() should be true")
+	}
 }

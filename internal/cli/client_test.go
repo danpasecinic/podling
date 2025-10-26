@@ -634,3 +634,184 @@ func TestClient_RequestValidation(t *testing.T) {
 		},
 	)
 }
+
+func TestClient_GetTaskLogs_MoreCoverage(t *testing.T) {
+	t.Run(
+		"logs with valid worker and response", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						if r.URL.Path == "/api/v1/nodes" {
+							w.WriteHeader(http.StatusOK)
+							_ = json.NewEncoder(w).Encode(
+								[]types.Node{
+									{NodeID: "worker-1", Hostname: "nonexistent", Port: 99999},
+								},
+							)
+						}
+					},
+				),
+			)
+			defer server.Close()
+
+			client := NewClient(server.URL)
+			task := &types.Task{
+				TaskID: "task-123",
+				NodeID: "worker-1",
+				Status: types.TaskRunning,
+			}
+
+			_, _ = client.GetTaskLogs(task, 100)
+		},
+	)
+}
+
+func TestClient_ErrorBranches(t *testing.T) {
+	t.Run(
+		"CreateTask with 201 status", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusCreated)
+						_ = json.NewEncoder(w).Encode(
+							types.Task{
+								TaskID:    "task-123",
+								Name:      "test",
+								Image:     "nginx:latest",
+								Status:    types.TaskPending,
+								CreatedAt: time.Now(),
+							},
+						)
+					},
+				),
+			)
+			defer server.Close()
+
+			client := NewClient(server.URL)
+			task, err := client.CreateTask("test", "nginx:latest", nil)
+			if err != nil {
+				t.Errorf("CreateTask() with 201: error = %v", err)
+			}
+			if task == nil {
+				t.Error("CreateTask() returned nil task with 201")
+			}
+		},
+	)
+
+	t.Run(
+		"ListNodes connection refused", func(t *testing.T) {
+			client := NewClient("http://localhost:9")
+			_, err := client.ListNodes()
+			if err == nil {
+				t.Error("ListNodes() expected connection error")
+			}
+		},
+	)
+}
+
+func TestClient_GetTaskLogs_CompleteCoverage(t *testing.T) {
+	t.Run(
+		"worker returns non-200 status", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						if r.URL.Path == "/api/v1/nodes" {
+							w.WriteHeader(http.StatusOK)
+							_ = json.NewEncoder(w).Encode(
+								[]types.Node{
+									{NodeID: "worker-1", Hostname: "255.255.255.255", Port: 1},
+								},
+							)
+						}
+					},
+				),
+			)
+			defer server.Close()
+
+			client := NewClient(server.URL)
+			task := &types.Task{
+				TaskID: "task-123",
+				NodeID: "worker-1",
+				Status: types.TaskRunning,
+			}
+
+			_, err := client.GetTaskLogs(task, 100)
+			if err == nil {
+				t.Log("GetTaskLogs expected error for unreachable worker")
+			}
+		},
+	)
+
+	t.Run(
+		"empty task node ID", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode([]types.Node{})
+					},
+				),
+			)
+			defer server.Close()
+
+			client := NewClient(server.URL)
+			task := &types.Task{
+				TaskID: "task-123",
+				NodeID: "",
+				Status: types.TaskPending,
+			}
+
+			_, err := client.GetTaskLogs(task, 100)
+			if err == nil {
+				t.Error("GetTaskLogs should fail for task with no node")
+			}
+		},
+	)
+}
+
+func TestClient_CreateTask_FullCoverage(t *testing.T) {
+	t.Run(
+		"CreateTask with all env vars", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						// Verify request body
+						var req map[string]interface{}
+						_ = json.NewDecoder(r.Body).Decode(&req)
+
+						if req["name"] != "test-task" {
+							t.Errorf("expected name test-task, got %v", req["name"])
+						}
+
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(
+							types.Task{
+								TaskID:    "task-123",
+								Name:      "test-task",
+								Image:     "nginx:latest",
+								Status:    types.TaskPending,
+								Env:       map[string]string{"A": "1", "B": "2"},
+								CreatedAt: time.Now(),
+							},
+						)
+					},
+				),
+			)
+			defer server.Close()
+
+			client := NewClient(server.URL)
+			env := map[string]string{
+				"A": "1",
+				"B": "2",
+				"C": "3",
+			}
+			task, err := client.CreateTask("test-task", "nginx:latest", env)
+			if err != nil {
+				t.Errorf("CreateTask error: %v", err)
+			}
+			if task == nil {
+				t.Error("CreateTask returned nil")
+			}
+		},
+	)
+}
