@@ -29,7 +29,6 @@ func NewPostgresStore(connectionString string) (*PostgresStore, error) {
 
 	store := &PostgresStore{db: db}
 
-	// Run migrations
 	if err := store.runMigrations(); err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
