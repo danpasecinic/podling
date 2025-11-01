@@ -19,7 +19,6 @@ import (
 )
 
 func main() {
-	// Load .env file if it exists (ignore error if not found)
 	_ = godotenv.Load()
 
 	store, closer := initStore()
@@ -79,7 +78,7 @@ func main() {
 func initStore() (state.StateStore, func() error) {
 	storeType := os.Getenv("STORE_TYPE")
 	if storeType == "" {
-		storeType = "memory" // default to in-memory
+		storeType = "memory"
 	}
 
 	switch storeType {
