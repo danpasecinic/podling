@@ -59,7 +59,11 @@ func (s *PostgresStore) runMigrations() error {
 			created_at TIMESTAMP NOT NULL,
 			started_at TIMESTAMP,
 			finished_at TIMESTAMP,
-			error TEXT
+			error TEXT,
+			liveness_probe JSONB,
+			readiness_probe JSONB,
+			restart_policy VARCHAR(50),
+			health_status VARCHAR(50)
 		);
 
 		CREATE TABLE IF NOT EXISTS nodes (
@@ -76,6 +80,11 @@ func (s *PostgresStore) runMigrations() error {
 		CREATE INDEX IF NOT EXISTS idx_tasks_node_id ON tasks(node_id);
 		CREATE INDEX IF NOT EXISTS idx_nodes_status ON nodes(status);
 		CREATE INDEX IF NOT EXISTS idx_nodes_last_heartbeat ON nodes(last_heartbeat);
+
+		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS liveness_probe JSONB;
+		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS readiness_probe JSONB;
+		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS restart_policy VARCHAR(50);
+		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS health_status VARCHAR(50);
 	`
 
 	_, err := s.db.Exec(schema)
@@ -98,9 +107,23 @@ func (s *PostgresStore) AddTask(task types.Task) error {
 		return fmt.Errorf("failed to marshal env: %w", err)
 	}
 
+	var livenessProbeJSON, readinessProbeJSON []byte
+	if task.LivenessProbe != nil {
+		livenessProbeJSON, err = json.Marshal(task.LivenessProbe)
+		if err != nil {
+			return fmt.Errorf("failed to marshal liveness probe: %w", err)
+		}
+	}
+	if task.ReadinessProbe != nil {
+		readinessProbeJSON, err = json.Marshal(task.ReadinessProbe)
+		if err != nil {
+			return fmt.Errorf("failed to marshal readiness probe: %w", err)
+		}
+	}
+
 	query := `
-		INSERT INTO tasks (task_id, name, image, env, status, node_id, container_id, created_at, started_at, finished_at, error)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO tasks (task_id, name, image, env, status, node_id, container_id, created_at, started_at, finished_at, error, liveness_probe, readiness_probe, restart_policy, health_status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`
 
 	_, err = s.db.Exec(
@@ -116,6 +139,10 @@ func (s *PostgresStore) AddTask(task types.Task) error {
 		task.StartedAt,
 		task.FinishedAt,
 		nullString(task.Error),
+		nullBytes(livenessProbeJSON),
+		nullBytes(readinessProbeJSON),
+		nullString(string(task.RestartPolicy)),
+		nullString(string(task.HealthStatus)),
 	)
 
 	if err != nil {
@@ -128,14 +155,15 @@ func (s *PostgresStore) AddTask(task types.Task) error {
 // GetTask retrieves a task by ID
 func (s *PostgresStore) GetTask(taskID string) (types.Task, error) {
 	query := `
-		SELECT task_id, name, image, env, status, node_id, container_id, created_at, started_at, finished_at, error
+		SELECT task_id, name, image, env, status, node_id, container_id, created_at, started_at, finished_at, error,
+		       liveness_probe, readiness_probe, restart_policy, health_status
 		FROM tasks
 		WHERE task_id = $1
 	`
 
 	var task types.Task
-	var envJSON []byte
-	var nodeID, containerID, errorMsg sql.NullString
+	var envJSON, livenessProbeJSON, readinessProbeJSON []byte
+	var nodeID, containerID, errorMsg, restartPolicy, healthStatus sql.NullString
 
 	err := s.db.QueryRow(query, taskID).Scan(
 		&task.TaskID,
@@ -149,6 +177,10 @@ func (s *PostgresStore) GetTask(taskID string) (types.Task, error) {
 		&task.StartedAt,
 		&task.FinishedAt,
 		&errorMsg,
+		&livenessProbeJSON,
+		&readinessProbeJSON,
+		&restartPolicy,
+		&healthStatus,
 	)
 
 	if errors.Is(err, sql.ErrNoRows) {
@@ -164,9 +196,29 @@ func (s *PostgresStore) GetTask(taskID string) (types.Task, error) {
 		}
 	}
 
+	if len(livenessProbeJSON) > 0 {
+		task.LivenessProbe = &types.HealthCheck{}
+		if err := json.Unmarshal(livenessProbeJSON, task.LivenessProbe); err != nil {
+			return types.Task{}, fmt.Errorf("failed to unmarshal liveness probe: %w", err)
+		}
+	}
+
+	if len(readinessProbeJSON) > 0 {
+		task.ReadinessProbe = &types.HealthCheck{}
+		if err := json.Unmarshal(readinessProbeJSON, task.ReadinessProbe); err != nil {
+			return types.Task{}, fmt.Errorf("failed to unmarshal readiness probe: %w", err)
+		}
+	}
+
 	task.NodeID = nodeID.String
 	task.ContainerID = containerID.String
 	task.Error = errorMsg.String
+	if restartPolicy.Valid {
+		task.RestartPolicy = types.RestartPolicy(restartPolicy.String)
+	}
+	if healthStatus.Valid {
+		task.HealthStatus = types.HealthStatus(healthStatus.String)
+	}
 
 	return task, nil
 }
@@ -216,6 +268,11 @@ func (s *PostgresStore) UpdateTask(taskID string, updates TaskUpdate) error {
 		args = append(args, *updates.Error)
 		argPos++
 	}
+	if updates.HealthStatus != nil {
+		query += fmt.Sprintf("health_status = $%d, ", argPos)
+		args = append(args, *updates.HealthStatus)
+		argPos++
+	}
 
 	query = query[:len(query)-2]
 	query += fmt.Sprintf(" WHERE task_id = $%d", argPos)
@@ -232,7 +289,8 @@ func (s *PostgresStore) UpdateTask(taskID string, updates TaskUpdate) error {
 // ListTasks returns all tasks in the store
 func (s *PostgresStore) ListTasks() ([]types.Task, error) {
 	query := `
-		SELECT task_id, name, image, env, status, node_id, container_id, created_at, started_at, finished_at, error
+		SELECT task_id, name, image, env, status, node_id, container_id, created_at, started_at, finished_at, error,
+		       liveness_probe, readiness_probe, restart_policy, health_status
 		FROM tasks
 		ORDER BY created_at DESC
 	`
@@ -248,8 +306,8 @@ func (s *PostgresStore) ListTasks() ([]types.Task, error) {
 	var tasks []types.Task
 	for rows.Next() {
 		var task types.Task
-		var envJSON []byte
-		var nodeID, containerID, errorMsg sql.NullString
+		var envJSON, livenessProbeJSON, readinessProbeJSON []byte
+		var nodeID, containerID, errorMsg, restartPolicy, healthStatus sql.NullString
 
 		err := rows.Scan(
 			&task.TaskID,
@@ -263,21 +321,44 @@ func (s *PostgresStore) ListTasks() ([]types.Task, error) {
 			&task.StartedAt,
 			&task.FinishedAt,
 			&errorMsg,
+			&livenessProbeJSON,
+			&readinessProbeJSON,
+			&restartPolicy,
+			&healthStatus,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan task: %w", err)
 		}
 
-		// Unmarshal env
 		if len(envJSON) > 0 {
 			if err := json.Unmarshal(envJSON, &task.Env); err != nil {
 				return nil, fmt.Errorf("failed to unmarshal env: %w", err)
 			}
 		}
 
+		if len(livenessProbeJSON) > 0 {
+			task.LivenessProbe = &types.HealthCheck{}
+			if err := json.Unmarshal(livenessProbeJSON, task.LivenessProbe); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal liveness probe: %w", err)
+			}
+		}
+
+		if len(readinessProbeJSON) > 0 {
+			task.ReadinessProbe = &types.HealthCheck{}
+			if err := json.Unmarshal(readinessProbeJSON, task.ReadinessProbe); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal readiness probe: %w", err)
+			}
+		}
+
 		task.NodeID = nodeID.String
 		task.ContainerID = containerID.String
 		task.Error = errorMsg.String
+		if restartPolicy.Valid {
+			task.RestartPolicy = types.RestartPolicy(restartPolicy.String)
+		}
+		if healthStatus.Valid {
+			task.HealthStatus = types.HealthStatus(healthStatus.String)
+		}
 
 		tasks = append(tasks, task)
 	}
@@ -486,4 +567,11 @@ func nullString(s string) sql.NullString {
 		return sql.NullString{Valid: false}
 	}
 	return sql.NullString{String: s, Valid: true}
+}
+
+func nullBytes(b []byte) interface{} {
+	if b == nil {
+		return nil
+	}
+	return b
 }
