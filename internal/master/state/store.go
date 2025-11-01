@@ -21,12 +21,13 @@ var (
 
 // TaskUpdate contains fields that can be updated for a task
 type TaskUpdate struct {
-	Status      *types.TaskStatus
-	NodeID      *string
-	ContainerID *string
-	StartedAt   *time.Time
-	FinishedAt  *time.Time
-	Error       *string
+	Status       *types.TaskStatus
+	NodeID       *string
+	ContainerID  *string
+	StartedAt    *time.Time
+	FinishedAt   *time.Time
+	Error        *string
+	HealthStatus *types.HealthStatus
 }
 
 // NodeUpdate contains fields that can be updated for a node
@@ -123,6 +124,9 @@ func (s *InMemoryStore) UpdateTask(taskID string, updates TaskUpdate) error {
 	}
 	if updates.Error != nil {
 		task.Error = *updates.Error
+	}
+	if updates.HealthStatus != nil {
+		task.HealthStatus = *updates.HealthStatus
 	}
 
 	s.tasks[taskID] = task
