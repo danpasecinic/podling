@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/exec"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
@@ -137,4 +138,66 @@ func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail 
 	}
 
 	return buf.String(), nil
+}
+
+// ExecInContainer executes a command in a running container
+// Returns (exitCode, output, error)
+func (c *Client) ExecInContainer(ctx context.Context, containerID string, cmd []string) (int, string, error) {
+	// Create exec instance
+	execConfig := exec.Config{
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          cmd,
+	}
+
+	execID, err := c.cli.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return -1, "", fmt.Errorf("failed to create exec: %w", err)
+	}
+
+	// Start exec and attach to get output
+	resp, err := c.cli.ContainerExecAttach(ctx, execID.ID, exec.StartOptions{})
+	if err != nil {
+		return -1, "", fmt.Errorf("failed to attach to exec: %w", err)
+	}
+	defer resp.Close()
+
+	// Read output
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, resp.Reader)
+	if err != nil {
+		return -1, "", fmt.Errorf("failed to read exec output: %w", err)
+	}
+
+	// Get exec result to check exit code
+	inspectResp, err := c.cli.ContainerExecInspect(ctx, execID.ID)
+	if err != nil {
+		return -1, buf.String(), fmt.Errorf("failed to inspect exec: %w", err)
+	}
+
+	return inspectResp.ExitCode, buf.String(), nil
+}
+
+// GetContainerIP returns the IP address of a container
+func (c *Client) GetContainerIP(ctx context.Context, containerID string) (string, error) {
+	inspect, err := c.cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
+	}
+
+	// Get IP from default bridge network
+	if inspect.NetworkSettings != nil && inspect.NetworkSettings.IPAddress != "" {
+		return inspect.NetworkSettings.IPAddress, nil
+	}
+
+	// Try to get IP from any network
+	if inspect.NetworkSettings != nil && inspect.NetworkSettings.Networks != nil {
+		for _, network := range inspect.NetworkSettings.Networks {
+			if network.IPAddress != "" {
+				return network.IPAddress, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no IP address found for container %s", containerID)
 }
