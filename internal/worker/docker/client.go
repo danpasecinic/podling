@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/exec"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
@@ -141,10 +140,8 @@ func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail 
 }
 
 // ExecInContainer executes a command in a running container
-// Returns (exitCode, output, error)
 func (c *Client) ExecInContainer(ctx context.Context, containerID string, cmd []string) (int, string, error) {
-	// Create exec instance
-	execConfig := exec.Config{
+	execConfig := container.ExecOptions{
 		AttachStdout: true,
 		AttachStderr: true,
 		Cmd:          cmd,
@@ -155,21 +152,18 @@ func (c *Client) ExecInContainer(ctx context.Context, containerID string, cmd []
 		return -1, "", fmt.Errorf("failed to create exec: %w", err)
 	}
 
-	// Start exec and attach to get output
-	resp, err := c.cli.ContainerExecAttach(ctx, execID.ID, exec.StartOptions{})
+	resp, err := c.cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
 	if err != nil {
 		return -1, "", fmt.Errorf("failed to attach to exec: %w", err)
 	}
 	defer resp.Close()
 
-	// Read output
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, resp.Reader)
 	if err != nil {
 		return -1, "", fmt.Errorf("failed to read exec output: %w", err)
 	}
 
-	// Get exec result to check exit code
 	inspectResp, err := c.cli.ContainerExecInspect(ctx, execID.ID)
 	if err != nil {
 		return -1, buf.String(), fmt.Errorf("failed to inspect exec: %w", err)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/danpasecinic/podling/internal/types"
 	"github.com/danpasecinic/podling/internal/worker/docker"
+	"github.com/danpasecinic/podling/internal/worker/health"
 )
 
 // Agent manages task execution and communication with the master.
@@ -20,6 +21,7 @@ type Agent struct {
 	masterURL            string
 	dockerClient         *docker.Client
 	runningTasks         map[string]*types.Task
+	healthCheckers       map[string]*health.Checker
 	mu                   sync.RWMutex
 	heartbeatTicker      *time.Ticker
 	stopChan             chan struct{}
@@ -39,6 +41,7 @@ func NewAgent(nodeID, masterURL string) (*Agent, error) {
 		masterURL:            masterURL,
 		dockerClient:         dockerClient,
 		runningTasks:         make(map[string]*types.Task),
+		healthCheckers:       make(map[string]*health.Checker),
 		stopChan:             make(chan struct{}),
 		consecutiveFailures:  0,
 		maxConsecutiveErrors: 10,
@@ -263,6 +266,36 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 		log.Printf("failed to update task with container ID: %v", err)
 	}
 
+	if task.LivenessProbe != nil {
+		restartPolicy := task.RestartPolicy
+		if restartPolicy == "" {
+			restartPolicy = types.RestartPolicyNever
+		}
+
+		checker := health.NewChecker(
+			task.TaskID,
+			containerID,
+			task.LivenessProbe,
+			restartPolicy,
+			a.dockerClient,
+			a.handleUnhealthyContainer,
+		)
+
+		a.mu.Lock()
+		a.healthCheckers[task.TaskID] = checker
+		a.mu.Unlock()
+
+		go checker.Start(ctx)
+		defer func() {
+			checker.Stop()
+			a.mu.Lock()
+			delete(a.healthCheckers, task.TaskID)
+			a.mu.Unlock()
+		}()
+
+		log.Printf("started liveness probe for task %s", task.TaskID)
+	}
+
 	exitCode, err := a.dockerClient.WaitContainer(ctx, containerID)
 	if err != nil {
 		if updateErr := a.updateTaskStatus(task.TaskID, types.TaskFailed, containerID, err.Error()); updateErr != nil {
@@ -280,6 +313,20 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 		if err := a.updateTaskStatus(task.TaskID, types.TaskFailed, containerID, errMsg); err != nil {
 			log.Printf("failed to update task status: %v", err)
 		}
+
+		restartPolicy := task.RestartPolicy
+		if restartPolicy == "" {
+			restartPolicy = types.RestartPolicyNever
+		}
+
+		if health.ShouldRestart(restartPolicy, exitCode) {
+			log.Printf(
+				"container exited with code %d, restart policy is %s - would restart (not implemented yet)",
+				exitCode, restartPolicy,
+			)
+			// TODO: Implement actual container restart logic
+			// This would require refactoring ExecuteTask into a loop or using a supervisor pattern
+		}
 	}
 
 	if err := a.dockerClient.RemoveContainer(ctx, containerID); err != nil {
@@ -287,6 +334,42 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 	}
 
 	return nil
+}
+
+// handleUnhealthyContainer is called when a container becomes unhealthy
+func (a *Agent) handleUnhealthyContainer(taskID string) {
+	log.Printf("[health] container for task %s is unhealthy", taskID)
+
+	a.mu.RLock()
+	task, exists := a.runningTasks[taskID]
+	a.mu.RUnlock()
+
+	if !exists {
+		log.Printf("[health] task %s not found in running tasks", taskID)
+		return
+	}
+
+	restartPolicy := task.RestartPolicy
+	if restartPolicy == "" {
+		restartPolicy = types.RestartPolicyNever
+	}
+
+	log.Printf("[health] task %s restart policy: %s", taskID, restartPolicy)
+
+	// For now, just log and update status
+	// In a full implementation, we would restart the container here
+	if restartPolicy == types.RestartPolicyAlways || restartPolicy == types.RestartPolicyOnFailure {
+		log.Printf("[health] container restart not yet implemented - would restart task %s", taskID)
+		// TODO: Implement container restart logic
+		// This requires careful coordination with the main ExecuteTask goroutine
+	}
+
+	// Update task status to indicate health issue
+	if err := a.updateTaskStatus(
+		taskID, types.TaskFailed, task.ContainerID, "container failed health check",
+	); err != nil {
+		log.Printf("failed to update task status for unhealthy container: %v", err)
+	}
 }
 
 // updateTaskStatus sends a status update to the master.
