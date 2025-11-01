@@ -11,7 +11,7 @@ controller with REST API, worker agents that manage containers via Docker, and a
 
 - **Master-Worker Architecture**: Distributed container management
 - **REST API**: Echo-based HTTP server for control plane
-- **State Management**: Thread-safe in-memory state store
+- **Persistent Storage**: PostgreSQL or in-memory state store
 - **Hot Reloading**: Air integration for rapid development
 - **Production Patterns**: Following golang-standards/project-layout
 
@@ -22,6 +22,7 @@ controller with REST API, worker agents that manage containers via Docker, and a
 - Go 1.25 or later
 - Docker Engine
 - Make (optional, for convenience)
+- PostgreSQL 12+ (optional, for persistent storage)
 
 ### Installation
 
@@ -35,6 +36,36 @@ go mod download
 
 # Install development tools (Air, linters)
 make install-tools
+```
+
+### Running with PostgreSQL (Recommended)
+
+```bash
+# Start PostgreSQL using docker-compose
+docker-compose up -d
+
+# Set environment variables
+export STORE_TYPE=postgres
+export DATABASE_URL="postgres://podling:podling123@localhost:5432/podling?sslmode=disable"
+
+# Run the master
+make run
+
+# Or copy .env.example to .env and configure
+cp .env.example .env
+# Edit .env to set STORE_TYPE=postgres
+make run
+```
+
+### Running with In-Memory Store (Development)
+
+```bash
+# Default mode - no configuration needed
+make dev
+
+# Or explicitly set
+export STORE_TYPE=memory
+make run
 ```
 
 ### Development
@@ -54,6 +85,10 @@ make test-coverage
 
 # Run tests with race detector
 make test-race
+
+# Run PostgreSQL tests (requires running database)
+export TEST_DATABASE_URL="postgres://podling:podling123@localhost:5432/podling?sslmode=disable"
+go test ./internal/master/state/
 ```
 
 ## Project Structure
