@@ -44,18 +44,13 @@ make install-tools
 # Start PostgreSQL using docker-compose
 docker-compose up -d
 
-# Set environment variables
-export STORE_TYPE=postgres
-export DATABASE_URL="postgres://podling:podling123@localhost:5432/podling?sslmode=disable"
-
-# Run the master
-make run
-
-# Or copy .env.example to .env and configure
+# Configure via .env file (easiest method)
 cp .env.example .env
 # Edit .env to set STORE_TYPE=postgres
 make run
 ```
+
+The master automatically loads `.env` if present, so no need to export variables manually.
 
 ### Running with In-Memory Store (Development)
 
