@@ -407,9 +407,11 @@ func (s *PostgresStore) ListNodes() ([]types.Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query nodes: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
-	nodes := []types.Node{}
+	var nodes []types.Node
 	for rows.Next() {
 		var node types.Node
 		err := rows.Scan(

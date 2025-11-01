@@ -89,7 +89,7 @@ func initStore() (state.StateStore, func() error) {
 			log.Fatal("DATABASE_URL environment variable is required when STORE_TYPE=postgres")
 		}
 
-		log.Printf("initializing PostgreSQL store with connection: %s", maskPassword(dbURL))
+		log.Printf("initializing PostgreSQL store with connection: %s", maskPassword())
 		pgStore, err := state.NewPostgresStore(dbURL)
 		if err != nil {
 			log.Fatalf("failed to initialize PostgreSQL store: %v", err)
@@ -109,6 +109,6 @@ func initStore() (state.StateStore, func() error) {
 }
 
 // maskPassword masks the password in a database URL for logging
-func maskPassword(dbURL string) string {
+func maskPassword() string {
 	return "***masked***"
 }
