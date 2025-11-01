@@ -341,3 +341,169 @@ func TestPostgresStore_GetAvailableNodes(t *testing.T) {
 		t.Errorf("expected available node to be node-avail-1, got %s", available[0].NodeID)
 	}
 }
+
+func TestPostgresStore_ListNodes(t *testing.T) {
+	store := getTestPostgresStore(t)
+
+	nodes := []types.Node{
+		{
+			NodeID:        "node-list-1",
+			Hostname:      "worker-1",
+			Port:          8081,
+			Status:        types.NodeOnline,
+			Capacity:      10,
+			RunningTasks:  2,
+			LastHeartbeat: time.Now(),
+		},
+		{
+			NodeID:        "node-list-2",
+			Hostname:      "worker-2",
+			Port:          8082,
+			Status:        types.NodeOffline,
+			Capacity:      5,
+			RunningTasks:  0,
+			LastHeartbeat: time.Now().Add(-1 * time.Hour),
+		},
+		{
+			NodeID:        "node-list-3",
+			Hostname:      "worker-3",
+			Port:          8083,
+			Status:        types.NodeOnline,
+			Capacity:      15,
+			RunningTasks:  8,
+			LastHeartbeat: time.Now(),
+		},
+	}
+
+	for _, node := range nodes {
+		err := store.AddNode(node)
+		if err != nil {
+			t.Fatalf("failed to add node %s: %v", node.NodeID, err)
+		}
+	}
+
+	allNodes, err := store.ListNodes()
+	if err != nil {
+		t.Fatalf("failed to list nodes: %v", err)
+	}
+
+	if len(allNodes) != 3 {
+		t.Errorf("expected 3 nodes, got %d", len(allNodes))
+	}
+
+	// Verify nodes are ordered by last_heartbeat DESC (most recent first)
+	if len(allNodes) >= 2 {
+		for i := 0; i < 2; i++ {
+			if allNodes[i].NodeID != "node-list-1" && allNodes[i].NodeID != "node-list-3" {
+				t.Errorf("expected recent nodes first, got %s at position %d", allNodes[i].NodeID, i)
+			}
+		}
+	}
+}
+
+func TestPostgresStore_UpdateTask_AllFields(t *testing.T) {
+	store := getTestPostgresStore(t)
+
+	task := types.Task{
+		TaskID:    "test-task-update-all",
+		Name:      "test-task",
+		Image:     "nginx:latest",
+		Status:    types.TaskPending,
+		CreatedAt: time.Now(),
+	}
+
+	err := store.AddTask(task)
+	if err != nil {
+		t.Fatalf("failed to add task: %v", err)
+	}
+
+	newStatus := types.TaskRunning
+	newNodeID := "node-123"
+	newContainerID := "container-456"
+	startedAt := time.Now()
+	errorMsg := "test error"
+
+	err = store.UpdateTask(
+		"test-task-update-all", TaskUpdate{
+			Status:      &newStatus,
+			NodeID:      &newNodeID,
+			ContainerID: &newContainerID,
+			StartedAt:   &startedAt,
+			Error:       &errorMsg,
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to update task: %v", err)
+	}
+
+	updated, err := store.GetTask("test-task-update-all")
+	if err != nil {
+		t.Fatalf("failed to get updated task: %v", err)
+	}
+
+	if updated.Status != newStatus {
+		t.Errorf("expected status %s, got %s", newStatus, updated.Status)
+	}
+	if updated.NodeID != newNodeID {
+		t.Errorf("expected node ID %s, got %s", newNodeID, updated.NodeID)
+	}
+	if updated.ContainerID != newContainerID {
+		t.Errorf("expected container ID %s, got %s", newContainerID, updated.ContainerID)
+	}
+	if updated.Error != errorMsg {
+		t.Errorf("expected error %s, got %s", errorMsg, updated.Error)
+	}
+	if updated.StartedAt == nil {
+		t.Error("expected StartedAt to be set")
+	}
+}
+
+func TestPostgresStore_UpdateNode_AllFields(t *testing.T) {
+	store := getTestPostgresStore(t)
+
+	node := types.Node{
+		NodeID:        "node-update-all",
+		Hostname:      "worker-1",
+		Port:          8081,
+		Status:        types.NodeOnline,
+		Capacity:      10,
+		RunningTasks:  0,
+		LastHeartbeat: time.Now().Add(-1 * time.Hour),
+	}
+
+	err := store.AddNode(node)
+	if err != nil {
+		t.Fatalf("failed to add node: %v", err)
+	}
+
+	newStatus := types.NodeOffline
+	newRunningTasks := 7
+	newHeartbeat := time.Now()
+
+	err = store.UpdateNode(
+		"node-update-all", NodeUpdate{
+			Status:        &newStatus,
+			RunningTasks:  &newRunningTasks,
+			LastHeartbeat: &newHeartbeat,
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to update node: %v", err)
+	}
+
+	updated, err := store.GetNode("node-update-all")
+	if err != nil {
+		t.Fatalf("failed to get updated node: %v", err)
+	}
+
+	if updated.Status != newStatus {
+		t.Errorf("expected status %s, got %s", newStatus, updated.Status)
+	}
+	if updated.RunningTasks != newRunningTasks {
+		t.Errorf("expected running tasks %d, got %d", newRunningTasks, updated.RunningTasks)
+	}
+	// Heartbeat should be updated (within 1 second tolerance)
+	if updated.LastHeartbeat.Before(time.Now().Add(-1 * time.Second)) {
+		t.Error("expected LastHeartbeat to be updated")
+	}
+}
