@@ -2,14 +2,20 @@ package state
 
 import (
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/pressly/goose/v3"
 
 	_ "github.com/lib/pq"
 
 	"github.com/danpasecinic/podling/internal/types"
 )
+
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
 
 // PostgresStore is a PostgreSQL implementation of StateStore
 type PostgresStore struct {
@@ -44,50 +50,19 @@ func (s *PostgresStore) Close() error {
 	return nil
 }
 
-// runMigrations applies database schema
+// runMigrations applies database schema using goose
 func (s *PostgresStore) runMigrations() error {
-	schema := `
-		CREATE TABLE IF NOT EXISTS tasks (
-			task_id VARCHAR(255) PRIMARY KEY,
-			name VARCHAR(255) NOT NULL,
-			image VARCHAR(255) NOT NULL,
-			env JSONB,
-			status VARCHAR(50) NOT NULL,
-			node_id VARCHAR(255),
-			container_id VARCHAR(255),
-			created_at TIMESTAMP NOT NULL,
-			started_at TIMESTAMP,
-			finished_at TIMESTAMP,
-			error TEXT,
-			liveness_probe JSONB,
-			readiness_probe JSONB,
-			restart_policy VARCHAR(50),
-			health_status VARCHAR(50)
-		);
+	goose.SetBaseFS(embedMigrations)
 
-		CREATE TABLE IF NOT EXISTS nodes (
-			node_id VARCHAR(255) PRIMARY KEY,
-			hostname VARCHAR(255) NOT NULL,
-			port INTEGER NOT NULL,
-			status VARCHAR(50) NOT NULL,
-			capacity INTEGER NOT NULL,
-			running_tasks INTEGER NOT NULL DEFAULT 0,
-			last_heartbeat TIMESTAMP NOT NULL
-		);
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("failed to set goose dialect: %w", err)
+	}
 
-		CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-		CREATE INDEX IF NOT EXISTS idx_tasks_node_id ON tasks(node_id);
-		CREATE INDEX IF NOT EXISTS idx_nodes_status ON nodes(status);
-		CREATE INDEX IF NOT EXISTS idx_nodes_last_heartbeat ON nodes(last_heartbeat);
+	if err := goose.Up(s.db, "migrations"); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
 
-		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS liveness_probe JSONB;
-		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS readiness_probe JSONB;
-		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS restart_policy VARCHAR(50);
-		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS health_status VARCHAR(50);
-	`
-
-	_, err := s.db.Exec(schema)
-	return err
+	return nil
 }
 
 // AddTask adds a new task to the store

@@ -1,3 +1,5 @@
+-- +goose Up
+-- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS tasks (
     task_id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -26,3 +28,14 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_node_id ON tasks(node_id);
 CREATE INDEX IF NOT EXISTS idx_nodes_status ON nodes(status);
 CREATE INDEX IF NOT EXISTS idx_nodes_last_heartbeat ON nodes(last_heartbeat);
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP INDEX IF EXISTS idx_nodes_last_heartbeat;
+DROP INDEX IF EXISTS idx_nodes_status;
+DROP INDEX IF EXISTS idx_tasks_node_id;
+DROP INDEX IF EXISTS idx_tasks_status;
+DROP TABLE IF EXISTS nodes;
+DROP TABLE IF EXISTS tasks;
+-- +goose StatementEnd
