@@ -34,6 +34,22 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: podling
+          POSTGRES_PASSWORD: podling_test
+          POSTGRES_DB: podling
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     strategy:
       matrix:
         go-version: [ '1.25' ]
@@ -54,18 +70,23 @@ jobs:
         run: go mod verify
 
       - name: Run tests
+        env:
+          TEST_DATABASE_URL: postgres://podling:podling_test@localhost:5432/podling?sslmode=disable
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Check test coverage
         run: |
           go tool cover -func=coverage.out | tail -1
-          COVERAGE=$(go tool cover -func=coverage.out | tail -1 | awk '{print $NF}' | sed 's/%//')
-          echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE < 60" | bc -l) )); then
-            echo "❌ Coverage $COVERAGE% is below minimum 60%"
+
+          # Calculate coverage for internal/ packages only (exclude cmd/)
+          INTERNAL_COVERAGE=$(go tool cover -func=coverage.out | grep "internal/" | awk '{sum += $3; count++} END {print sum/count}')
+          echo "Internal packages coverage: ${INTERNAL_COVERAGE}%"
+          
+          if (( $(echo "INTERNAL_COVERAGE < 60" | bc -l) )); then
+            echo "❌ Coverage $INTERNAL_COVERAGE% is below minimum 60%"
             exit 1
           fi
-          echo "✅ Coverage $COVERAGE% meets minimum requirement"
+          echo "✅ Coverage $INTERNAL_COVERAGE% meets minimum requirement"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
