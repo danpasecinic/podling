@@ -54,22 +54,24 @@ var psCmd = &cobra.Command{
 				}
 				if task.LivenessProbe != nil {
 					fmt.Printf("  Liveness:      %s", task.LivenessProbe.Type)
-					if task.LivenessProbe.Type == "http" {
+					switch task.LivenessProbe.Type {
+					case "http":
 						fmt.Printf(" (path: %s, port: %d)", task.LivenessProbe.HTTPPath, task.LivenessProbe.Port)
-					} else if task.LivenessProbe.Type == "tcp" {
+					case "tcp":
 						fmt.Printf(" (port: %d)", task.LivenessProbe.Port)
-					} else if task.LivenessProbe.Type == "exec" {
+					case "exec":
 						fmt.Printf(" (command: %v)", task.LivenessProbe.Command)
 					}
 					fmt.Println()
 				}
 				if task.ReadinessProbe != nil {
 					fmt.Printf("  Readiness:     %s", task.ReadinessProbe.Type)
-					if task.ReadinessProbe.Type == "http" {
+					switch task.ReadinessProbe.Type {
+					case "http":
 						fmt.Printf(" (path: %s, port: %d)", task.ReadinessProbe.HTTPPath, task.ReadinessProbe.Port)
-					} else if task.ReadinessProbe.Type == "tcp" {
+					case "tcp":
 						fmt.Printf(" (port: %d)", task.ReadinessProbe.Port)
-					} else if task.ReadinessProbe.Type == "exec" {
+					case "exec":
 						fmt.Printf(" (command: %v)", task.ReadinessProbe.Command)
 					}
 					fmt.Println()

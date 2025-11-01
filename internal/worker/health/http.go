@@ -57,7 +57,7 @@ func (p *HTTPProbe) Check(ctx context.Context, check *types.HealthCheck, contain
 		result.Message = fmt.Sprintf("request failed: %v", err)
 		return result
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		result.Success = true

@@ -179,13 +179,14 @@ func (c *Client) GetContainerIP(ctx context.Context, containerID string) (string
 		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
 	}
 
-	// Get IP from default bridge network
-	if inspect.NetworkSettings != nil && inspect.NetworkSettings.IPAddress != "" {
-		return inspect.NetworkSettings.IPAddress, nil
-	}
-
-	// Try to get IP from any network
+	// Get IP from networks
 	if inspect.NetworkSettings != nil && inspect.NetworkSettings.Networks != nil {
+		// Try default bridge network first
+		if bridge, ok := inspect.NetworkSettings.Networks["bridge"]; ok && bridge.IPAddress != "" {
+			return bridge.IPAddress, nil
+		}
+
+		// Fall back to any available network
 		for _, network := range inspect.NetworkSettings.Networks {
 			if network.IPAddress != "" {
 				return network.IPAddress, nil
