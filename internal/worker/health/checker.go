@@ -11,6 +11,17 @@ import (
 	"github.com/danpasecinic/podling/internal/worker/docker"
 )
 
+// DockerIPClient defines the interface for getting container IPs
+type DockerIPClient interface {
+	GetContainerIP(ctx context.Context, containerID string) (string, error)
+}
+
+// DockerHealthClient combines both exec and IP interfaces
+type DockerHealthClient interface {
+	DockerExecClient
+	DockerIPClient
+}
+
 // Checker manages health checks for a container
 type Checker struct {
 	taskID          string
@@ -18,7 +29,7 @@ type Checker struct {
 	check           *types.HealthCheck
 	checkType       types.ProbeType
 	restartPolicy   types.RestartPolicy
-	dockerClient    *docker.Client
+	dockerClient    DockerHealthClient
 	httpProbe       *HTTPProbe
 	tcpProbe        *TCPProbe
 	execProbe       *ExecProbe
@@ -40,6 +51,19 @@ func NewChecker(
 	dockerClient *docker.Client,
 	onUnhealthy func(string),
 ) *Checker {
+	return newCheckerWithClient(taskID, containerID, check, restartPolicy, dockerClient, onUnhealthy)
+}
+
+// newCheckerWithClient creates a checker with any DockerHealthClient (useful for testing)
+func newCheckerWithClient(
+	taskID string,
+	containerID string,
+	check *types.HealthCheck,
+	restartPolicy types.RestartPolicy,
+	dockerClient DockerHealthClient,
+	onUnhealthy func(string),
+) *Checker {
+	execProbe := &ExecProbe{dockerClient: dockerClient}
 	return &Checker{
 		taskID:        taskID,
 		containerID:   containerID,
@@ -49,7 +73,7 @@ func NewChecker(
 		dockerClient:  dockerClient,
 		httpProbe:     NewHTTPProbe(),
 		tcpProbe:      NewTCPProbe(),
-		execProbe:     NewExecProbe(dockerClient),
+		execProbe:     execProbe,
 		status:        types.HealthStatusUnknown,
 		stopChan:      make(chan struct{}),
 		onUnhealthy:   onUnhealthy,

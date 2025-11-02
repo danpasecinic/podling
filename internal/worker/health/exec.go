@@ -6,19 +6,16 @@ import (
 	"time"
 
 	"github.com/danpasecinic/podling/internal/types"
-	"github.com/danpasecinic/podling/internal/worker/docker"
 )
+
+// DockerExecClient defines the interface for executing commands in containers
+type DockerExecClient interface {
+	ExecInContainer(ctx context.Context, containerID string, cmd []string) (int, string, error)
+}
 
 // ExecProbe performs command execution health checks
 type ExecProbe struct {
-	dockerClient *docker.Client
-}
-
-// NewExecProbe creates a new exec probe
-func NewExecProbe(dockerClient *docker.Client) *ExecProbe {
-	return &ExecProbe{
-		dockerClient: dockerClient,
-	}
+	dockerClient DockerExecClient
 }
 
 // Check executes a command inside the container
