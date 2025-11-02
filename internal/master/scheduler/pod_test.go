@@ -104,7 +104,7 @@ func TestRoundRobin_SelectNodeForPod(t *testing.T) {
 	t.Run(
 		"Node at full capacity", func(t *testing.T) {
 			fullNodes := []types.Node{
-				newTestNode("node-1", types.NodeOnline, 5),
+				newTestNode("node-1", types.NodeOnline, 10),
 			}
 
 			_, err := scheduler.SelectNodeForPod(pod, fullNodes)
@@ -127,9 +127,9 @@ func TestRoundRobin_SelectNodeForPod(t *testing.T) {
 				t.Fatalf("SelectNodeForPod failed: %v", err)
 			}
 
-			// Should select the only available node
-			if node.NodeID != "node-3" {
-				t.Errorf("expected node-3 to be selected, got %s", node.NodeID)
+			// Should select one of the available nodes (node-2 or node-3)
+			if node.NodeID != "node-2" && node.NodeID != "node-3" {
+				t.Errorf("expected node-2 or node-3 to be selected, got %s", node.NodeID)
 			}
 		},
 	)

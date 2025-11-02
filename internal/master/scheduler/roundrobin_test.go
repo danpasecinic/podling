@@ -3,7 +3,6 @@ package scheduler
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/danpasecinic/podling/internal/types"
 )
@@ -26,8 +25,8 @@ func TestRoundRobin_SelectNode(t *testing.T) {
 		{
 			name: "no available nodes - all offline",
 			nodes: []types.Node{
-				{NodeID: "node1", Status: types.NodeOffline, Capacity: 10},
-				{NodeID: "node2", Status: types.NodeOffline, Capacity: 10},
+				newTestNode("node1", types.NodeOffline, 0),
+				newTestNode("node2", types.NodeOffline, 0),
 			},
 			task:    types.Task{TaskID: "task1"},
 			wantErr: ErrNoAvailableNodes,
@@ -35,8 +34,8 @@ func TestRoundRobin_SelectNode(t *testing.T) {
 		{
 			name: "no available nodes - all at capacity",
 			nodes: []types.Node{
-				{NodeID: "node1", Status: types.NodeOnline, Capacity: 2, RunningTasks: 2},
-				{NodeID: "node2", Status: types.NodeOnline, Capacity: 1, RunningTasks: 1},
+				newTestNode("node1", types.NodeOnline, 10),
+				newTestNode("node2", types.NodeOnline, 10),
 			},
 			task:    types.Task{TaskID: "task1"},
 			wantErr: ErrNoAvailableNodes,
@@ -44,7 +43,7 @@ func TestRoundRobin_SelectNode(t *testing.T) {
 		{
 			name: "single available node",
 			nodes: []types.Node{
-				{NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
+				newTestNode("node1", types.NodeOnline, 0),
 			},
 			task:      types.Task{TaskID: "task1"},
 			wantErr:   nil,
@@ -54,9 +53,9 @@ func TestRoundRobin_SelectNode(t *testing.T) {
 		{
 			name: "multiple available nodes - round robin",
 			nodes: []types.Node{
-				{NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
-				{NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
-				{NodeID: "node3", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
+				newTestNode("node1", types.NodeOnline, 0),
+				newTestNode("node2", types.NodeOnline, 0),
+				newTestNode("node3", types.NodeOnline, 0),
 			},
 			task:      types.Task{TaskID: "task1"},
 			wantErr:   nil,
@@ -65,9 +64,9 @@ func TestRoundRobin_SelectNode(t *testing.T) {
 		{
 			name: "mixed online and offline nodes",
 			nodes: []types.Node{
-				{NodeID: "node1", Status: types.NodeOffline, Capacity: 10, RunningTasks: 0},
-				{NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 5},
-				{NodeID: "node3", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
+				newTestNode("node1", types.NodeOffline, 0),
+				newTestNode("node2", types.NodeOnline, 5),
+				newTestNode("node3", types.NodeOnline, 0),
 			},
 			task:      types.Task{TaskID: "task1"},
 			wantErr:   nil,
@@ -114,9 +113,9 @@ func TestRoundRobin_SelectNode(t *testing.T) {
 
 func TestRoundRobin_RoundRobinOrder(t *testing.T) {
 	nodes := []types.Node{
-		{NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
-		{NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
-		{NodeID: "node3", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
+		newTestNode("node1", types.NodeOnline, 0),
+		newTestNode("node2", types.NodeOnline, 0),
+		newTestNode("node3", types.NodeOnline, 0),
 	}
 
 	rr := NewRoundRobin()
@@ -138,8 +137,8 @@ func TestRoundRobin_RoundRobinOrder(t *testing.T) {
 
 func TestRoundRobin_ConcurrentSelection(t *testing.T) {
 	nodes := []types.Node{
-		{NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
-		{NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
+		newTestNode("node1", types.NodeOnline, 0),
+		newTestNode("node2", types.NodeOnline, 0),
 	}
 
 	rr := NewRoundRobin()
@@ -180,7 +179,6 @@ func TestRoundRobin_ConcurrentSelection(t *testing.T) {
 }
 
 func TestFilterAvailableForTask(t *testing.T) {
-	now := time.Now()
 	emptyTask := types.Task{}
 
 	tests := []struct {
@@ -199,8 +197,8 @@ func TestFilterAvailableForTask(t *testing.T) {
 			name: "all available",
 			task: emptyTask,
 			nodes: []types.Node{
-				{NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 5, LastHeartbeat: now},
-				{NodeID: "node2", Status: types.NodeOnline, Capacity: 5, RunningTasks: 0, LastHeartbeat: now},
+				newTestNode("node1", types.NodeOnline, 5),
+				newTestNode("node2", types.NodeOnline, 0),
 			},
 			want: 2,
 		},
@@ -208,10 +206,10 @@ func TestFilterAvailableForTask(t *testing.T) {
 			name: "mixed availability",
 			task: emptyTask,
 			nodes: []types.Node{
-				{NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 5},
-				{NodeID: "node2", Status: types.NodeOffline, Capacity: 10, RunningTasks: 0},
-				{NodeID: "node3", Status: types.NodeOnline, Capacity: 2, RunningTasks: 2},
-				{NodeID: "node4", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0},
+				newTestNode("node1", types.NodeOnline, 5),
+				newTestNode("node2", types.NodeOffline, 0),
+				newTestNode("node3", types.NodeOnline, 10),
+				newTestNode("node4", types.NodeOnline, 0),
 			},
 			want: 2,
 		},
@@ -219,8 +217,8 @@ func TestFilterAvailableForTask(t *testing.T) {
 			name: "none available",
 			task: emptyTask,
 			nodes: []types.Node{
-				{NodeID: "node1", Status: types.NodeOffline, Capacity: 10, RunningTasks: 0},
-				{NodeID: "node2", Status: types.NodeOnline, Capacity: 5, RunningTasks: 5},
+				newTestNode("node1", types.NodeOffline, 0),
+				newTestNode("node2", types.NodeOnline, 10),
 			},
 			want: 0,
 		},
@@ -233,7 +231,7 @@ func TestFilterAvailableForTask(t *testing.T) {
 			},
 			nodes: []types.Node{
 				{
-					NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					NodeID: "node1", Status: types.NodeOnline, RunningTasks: 0,
 					Resources: &types.NodeResources{
 						Capacity:    types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
 						Allocatable: types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
@@ -241,7 +239,7 @@ func TestFilterAvailableForTask(t *testing.T) {
 					},
 				},
 				{
-					NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					NodeID: "node2", Status: types.NodeOnline, RunningTasks: 0,
 					Resources: &types.NodeResources{
 						Capacity:    types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
 						Allocatable: types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
@@ -260,19 +258,19 @@ func TestFilterAvailableForTask(t *testing.T) {
 			},
 			nodes: []types.Node{
 				{
-					NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					NodeID: "node1", Status: types.NodeOnline, RunningTasks: 0,
 					Resources: &types.NodeResources{
 						Capacity:    types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
 						Allocatable: types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
-						Used:        types.ResourceList{CPU: 1000, Memory: 512 * 1024 * 1024}, // Not enough
+						Used:        types.ResourceList{CPU: 1000, Memory: 512 * 1024 * 1024},
 					},
 				},
 				{
-					NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					NodeID: "node2", Status: types.NodeOnline, RunningTasks: 0,
 					Resources: &types.NodeResources{
 						Capacity:    types.ResourceList{CPU: 4000, Memory: 4 * 1024 * 1024 * 1024},
 						Allocatable: types.ResourceList{CPU: 4000, Memory: 4 * 1024 * 1024 * 1024},
-						Used:        types.ResourceList{CPU: 0, Memory: 0}, // Fits!
+						Used:        types.ResourceList{CPU: 0, Memory: 0},
 					},
 				},
 			},
@@ -287,7 +285,7 @@ func TestFilterAvailableForTask(t *testing.T) {
 			},
 			nodes: []types.Node{
 				{
-					NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					NodeID: "node1", Status: types.NodeOnline, RunningTasks: 0,
 					Resources: &types.NodeResources{
 						Capacity:    types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
 						Allocatable: types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
@@ -295,7 +293,7 @@ func TestFilterAvailableForTask(t *testing.T) {
 					},
 				},
 				{
-					NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					NodeID: "node2", Status: types.NodeOnline, RunningTasks: 0,
 					Resources: &types.NodeResources{
 						Capacity:    types.ResourceList{CPU: 2000, Memory: 4 * 1024 * 1024 * 1024},
 						Allocatable: types.ResourceList{CPU: 2000, Memory: 4 * 1024 * 1024 * 1024},
@@ -319,7 +317,8 @@ func TestFilterAvailableForTask(t *testing.T) {
 					if node.Status != types.NodeOnline {
 						t.Errorf("filterAvailableForTask() returned offline node: %s", node.NodeID)
 					}
-					if node.RunningTasks >= node.Capacity {
+					maxSlots := node.GetMaxTaskSlots()
+					if node.RunningTasks >= maxSlots {
 						t.Errorf("filterAvailableForTask() returned node at capacity: %s", node.NodeID)
 					}
 				}
