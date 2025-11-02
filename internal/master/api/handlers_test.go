@@ -275,7 +275,7 @@ func TestRegisterNode(t *testing.T) {
 	}{
 		{
 			name:       "valid node registration",
-			reqBody:    `{"hostname":"worker1","port":8081,"cpu":10000,"memory":10737418240}`,
+			reqBody:    `{"hostname":"worker1","port":8081,"cpu":"10","memory":"10Gi"}`,
 			wantStatus: http.StatusCreated,
 			wantFields: map[string]interface{}{
 				"hostname": "worker1",
@@ -291,6 +291,16 @@ func TestRegisterNode(t *testing.T) {
 		{
 			name:       "missing required fields",
 			reqBody:    `{"hostname":"worker1"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid CPU format",
+			reqBody:    `{"hostname":"worker1","port":8081,"cpu":"invalid","memory":"10Gi"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid memory format",
+			reqBody:    `{"hostname":"worker1","port":8081,"cpu":"10","memory":"invalid"}`,
 			wantStatus: http.StatusBadRequest,
 		},
 	}
