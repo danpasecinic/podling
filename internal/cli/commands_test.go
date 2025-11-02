@@ -106,11 +106,15 @@ func TestNodesCommand_Integration(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(
 							[]types.Node{
 								{
-									NodeID:        "worker-1",
-									Hostname:      "localhost",
-									Port:          8081,
-									Status:        types.NodeOnline,
-									Capacity:      10,
+									NodeID:   "worker-1",
+									Hostname: "localhost",
+									Port:     8081,
+									Status:   types.NodeOnline,
+									Resources: &types.NodeResources{
+										Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+										Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+										Used:        types.ResourceList{CPU: 0, Memory: 0},
+									},
 									RunningTasks:  2,
 									LastHeartbeat: time.Now().Add(-30 * time.Second),
 								},
@@ -416,20 +420,28 @@ func TestNodesCommand_AllPaths(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(
 							[]types.Node{
 								{
-									NodeID:        "worker-1",
-									Hostname:      "localhost",
-									Port:          8081,
-									Status:        types.NodeOnline,
-									Capacity:      10,
+									NodeID:   "worker-1",
+									Hostname: "localhost",
+									Port:     8081,
+									Status:   types.NodeOnline,
+									Resources: &types.NodeResources{
+										Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+										Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+										Used:        types.ResourceList{CPU: 0, Memory: 0},
+									},
 									RunningTasks:  2,
 									LastHeartbeat: time.Now().Add(-30 * time.Second),
 								},
 								{
-									NodeID:        "worker-2",
-									Hostname:      "localhost",
-									Port:          8082,
-									Status:        types.NodeOnline,
-									Capacity:      10,
+									NodeID:   "worker-2",
+									Hostname: "localhost",
+									Port:     8082,
+									Status:   types.NodeOnline,
+									Resources: &types.NodeResources{
+										Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+										Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+										Used:        types.ResourceList{CPU: 0, Memory: 0},
+									},
 									RunningTasks:  5,
 									LastHeartbeat: time.Now().Add(-45 * time.Second),
 								},
