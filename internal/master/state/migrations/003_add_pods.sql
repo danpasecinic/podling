@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS pods (
     reason VARCHAR(255)
 );
 
--- Indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_pods_status ON pods(status);
 CREATE INDEX IF NOT EXISTS idx_pods_node_id ON pods(node_id);
 CREATE INDEX IF NOT EXISTS idx_pods_namespace ON pods(namespace);
