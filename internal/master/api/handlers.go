@@ -13,16 +13,20 @@ import (
 
 // CreateTaskRequest represents a request to create a new task.
 type CreateTaskRequest struct {
-	Name  string            `json:"name" validate:"required"`
-	Image string            `json:"image" validate:"required"`
-	Env   map[string]string `json:"env"`
+	Name           string              `json:"name" validate:"required"`
+	Image          string              `json:"image" validate:"required"`
+	Env            map[string]string   `json:"env"`
+	LivenessProbe  *types.HealthCheck  `json:"livenessProbe,omitempty"`
+	ReadinessProbe *types.HealthCheck  `json:"readinessProbe,omitempty"`
+	RestartPolicy  types.RestartPolicy `json:"restartPolicy,omitempty"`
 }
 
 // UpdateTaskStatusRequest represents a request to update a task's status.
 type UpdateTaskStatusRequest struct {
-	Status      types.TaskStatus `json:"status" validate:"required"`
-	ContainerID string           `json:"containerId"`
-	Error       string           `json:"error"`
+	Status       types.TaskStatus   `json:"status" validate:"required"`
+	ContainerID  string             `json:"containerId"`
+	Error        string             `json:"error"`
+	HealthStatus types.HealthStatus `json:"healthStatus,omitempty"`
 }
 
 // RegisterNodeRequest represents a request to register a new worker node.
@@ -45,12 +49,16 @@ func (s *Server) CreateTask(c echo.Context) error {
 	}
 
 	task := types.Task{
-		TaskID:    generateID(),
-		Name:      req.Name,
-		Image:     req.Image,
-		Env:       req.Env,
-		Status:    types.TaskPending,
-		CreatedAt: time.Now(),
+		TaskID:         generateID(),
+		Name:           req.Name,
+		Image:          req.Image,
+		Env:            req.Env,
+		Status:         types.TaskPending,
+		CreatedAt:      time.Now(),
+		LivenessProbe:  req.LivenessProbe,
+		ReadinessProbe: req.ReadinessProbe,
+		RestartPolicy:  req.RestartPolicy,
+		HealthStatus:   types.HealthStatusUnknown,
 	}
 
 	if err := s.store.AddTask(task); err != nil {
@@ -113,6 +121,10 @@ func (s *Server) UpdateTaskStatus(c echo.Context) error {
 	update := state.TaskUpdate{
 		Status:      &req.Status,
 		ContainerID: &req.ContainerID,
+	}
+
+	if req.HealthStatus != "" {
+		update.HealthStatus = &req.HealthStatus
 	}
 
 	switch req.Status {

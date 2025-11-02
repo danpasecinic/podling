@@ -138,3 +138,61 @@ func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail 
 
 	return buf.String(), nil
 }
+
+// ExecInContainer executes a command in a running container
+func (c *Client) ExecInContainer(ctx context.Context, containerID string, cmd []string) (int, string, error) {
+	execConfig := container.ExecOptions{
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          cmd,
+	}
+
+	execID, err := c.cli.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return -1, "", fmt.Errorf("failed to create exec: %w", err)
+	}
+
+	resp, err := c.cli.ContainerExecAttach(ctx, execID.ID, container.ExecStartOptions{})
+	if err != nil {
+		return -1, "", fmt.Errorf("failed to attach to exec: %w", err)
+	}
+	defer resp.Close()
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, resp.Reader)
+	if err != nil {
+		return -1, "", fmt.Errorf("failed to read exec output: %w", err)
+	}
+
+	inspectResp, err := c.cli.ContainerExecInspect(ctx, execID.ID)
+	if err != nil {
+		return -1, buf.String(), fmt.Errorf("failed to inspect exec: %w", err)
+	}
+
+	return inspectResp.ExitCode, buf.String(), nil
+}
+
+// GetContainerIP returns the IP address of a container
+func (c *Client) GetContainerIP(ctx context.Context, containerID string) (string, error) {
+	inspect, err := c.cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
+	}
+
+	// Get IP from networks
+	if inspect.NetworkSettings != nil && inspect.NetworkSettings.Networks != nil {
+		// Try default bridge network first
+		if bridge, ok := inspect.NetworkSettings.Networks["bridge"]; ok && bridge.IPAddress != "" {
+			return bridge.IPAddress, nil
+		}
+
+		// Fall back to any available network
+		for _, network := range inspect.NetworkSettings.Networks {
+			if network.IPAddress != "" {
+				return network.IPAddress, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no IP address found for container %s", containerID)
+}

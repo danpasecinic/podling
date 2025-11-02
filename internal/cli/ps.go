@@ -27,21 +27,55 @@ var psCmd = &cobra.Command{
 			}
 
 			fmt.Println("Task Details:")
-			fmt.Printf("  ID:          %s\n", task.TaskID)
-			fmt.Printf("  Name:        %s\n", task.Name)
-			fmt.Printf("  Image:       %s\n", task.Image)
-			fmt.Printf("  Status:      %s\n", task.Status)
-			fmt.Printf("  Node:        %s\n", task.NodeID)
-			fmt.Printf("  Container:   %s\n", task.ContainerID)
-			fmt.Printf("  Created:     %s\n", task.CreatedAt.Format(time.RFC3339))
+			fmt.Printf("  ID:            %s\n", task.TaskID)
+			fmt.Printf("  Name:          %s\n", task.Name)
+			fmt.Printf("  Image:         %s\n", task.Image)
+			fmt.Printf("  Status:        %s\n", task.Status)
+			fmt.Printf("  Node:          %s\n", task.NodeID)
+			fmt.Printf("  Container:     %s\n", task.ContainerID)
+			fmt.Printf("  Created:       %s\n", task.CreatedAt.Format(time.RFC3339))
 			if task.StartedAt != nil {
-				fmt.Printf("  Started:     %s\n", task.StartedAt.Format(time.RFC3339))
+				fmt.Printf("  Started:       %s\n", task.StartedAt.Format(time.RFC3339))
 			}
 			if task.FinishedAt != nil {
-				fmt.Printf("  Finished:    %s\n", task.FinishedAt.Format(time.RFC3339))
+				fmt.Printf("  Finished:      %s\n", task.FinishedAt.Format(time.RFC3339))
 			}
 			if task.Error != "" {
-				fmt.Printf("  Error:       %s\n", task.Error)
+				fmt.Printf("  Error:         %s\n", task.Error)
+			}
+
+			if task.LivenessProbe != nil || task.ReadinessProbe != nil {
+				fmt.Println("\nHealth Checks:")
+				if task.HealthStatus != "" {
+					fmt.Printf("  Status:        %s\n", task.HealthStatus)
+				}
+				if task.RestartPolicy != "" {
+					fmt.Printf("  Restart Policy: %s\n", task.RestartPolicy)
+				}
+				if task.LivenessProbe != nil {
+					fmt.Printf("  Liveness:      %s", task.LivenessProbe.Type)
+					switch task.LivenessProbe.Type {
+					case "http":
+						fmt.Printf(" (path: %s, port: %d)", task.LivenessProbe.HTTPPath, task.LivenessProbe.Port)
+					case "tcp":
+						fmt.Printf(" (port: %d)", task.LivenessProbe.Port)
+					case "exec":
+						fmt.Printf(" (command: %v)", task.LivenessProbe.Command)
+					}
+					fmt.Println()
+				}
+				if task.ReadinessProbe != nil {
+					fmt.Printf("  Readiness:     %s", task.ReadinessProbe.Type)
+					switch task.ReadinessProbe.Type {
+					case "http":
+						fmt.Printf(" (path: %s, port: %d)", task.ReadinessProbe.HTTPPath, task.ReadinessProbe.Port)
+					case "tcp":
+						fmt.Printf(" (port: %d)", task.ReadinessProbe.Port)
+					case "exec":
+						fmt.Printf(" (command: %v)", task.ReadinessProbe.Command)
+					}
+					fmt.Println()
+				}
 			}
 
 			if len(task.Env) > 0 {
@@ -65,7 +99,7 @@ var psCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		_, _ = fmt.Fprintf(w, "ID\tNAME\tIMAGE\tSTATUS\tNODE\tCREATED\n")
+		_, _ = fmt.Fprintf(w, "ID\tNAME\tIMAGE\tSTATUS\tHEALTH\tNODE\tCREATED\n")
 
 		for _, task := range tasks {
 			age := time.Since(task.CreatedAt)
@@ -76,12 +110,18 @@ var psCmd = &cobra.Command{
 				nodeID = "-"
 			}
 
+			healthStatus := string(task.HealthStatus)
+			if healthStatus == "" || healthStatus == "unknown" {
+				healthStatus = "-"
+			}
+
 			_, _ = fmt.Fprintf(
-				w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+				w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				task.TaskID,
 				task.Name,
 				task.Image,
 				task.Status,
+				healthStatus,
 				nodeID,
 				ageStr,
 			)
