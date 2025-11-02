@@ -249,7 +249,17 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	containerID, err := a.dockerClient.CreateContainer(ctx, task.Image, env)
+	// Create container with resource limits if specified
+	var containerID string
+	var err error
+	if !task.Resources.Limits.IsZero() {
+		cpuLimit := task.Resources.Limits.GetCPULimitForDocker()
+		memoryLimit := task.Resources.Limits.GetMemoryLimitForDocker()
+		containerID, err = a.dockerClient.CreateContainerWithResources(ctx, task.Image, env, cpuLimit, memoryLimit)
+	} else {
+		containerID, err = a.dockerClient.CreateContainer(ctx, task.Image, env)
+	}
+
 	if err != nil {
 		if updateErr := a.updateTaskStatus(task.TaskID, types.TaskFailed, "", err.Error()); updateErr != nil {
 			log.Printf("failed to update task status: %v", updateErr)
