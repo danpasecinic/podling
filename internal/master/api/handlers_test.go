@@ -275,12 +275,11 @@ func TestRegisterNode(t *testing.T) {
 	}{
 		{
 			name:       "valid node registration",
-			reqBody:    `{"hostname":"worker1","port":8081,"capacity":10}`,
+			reqBody:    `{"hostname":"worker1","port":8081,"cpu":10000,"memory":10737418240}`,
 			wantStatus: http.StatusCreated,
 			wantFields: map[string]interface{}{
 				"hostname": "worker1",
 				"port":     float64(8081),
-				"capacity": float64(10),
 				"status":   string(types.NodeOnline),
 			},
 		},
