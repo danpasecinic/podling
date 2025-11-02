@@ -17,6 +17,10 @@ var (
 	ErrTaskAlreadyExists = errors.New("task already exists")
 	// ErrNodeAlreadyExists is returned when attempting to add a duplicate node
 	ErrNodeAlreadyExists = errors.New("node already exists")
+	// ErrPodNotFound is returned when a pod is not found in the store
+	ErrPodNotFound = errors.New("pod not found")
+	// ErrPodAlreadyExists is returned when attempting to add a duplicate pod
+	ErrPodAlreadyExists = errors.New("pod already exists")
 )
 
 // TaskUpdate contains fields that can be updated for a task
@@ -37,6 +41,18 @@ type NodeUpdate struct {
 	LastHeartbeat *time.Time
 }
 
+// PodUpdate contains fields that can be updated for a pod
+type PodUpdate struct {
+	Status      *types.PodStatus
+	NodeID      *string
+	Containers  []types.Container
+	ScheduledAt *time.Time
+	StartedAt   *time.Time
+	FinishedAt  *time.Time
+	Message     *string
+	Reason      *string
+}
+
 // StateStore defines the interface for managing task and node state
 type StateStore interface {
 	// Task operations
@@ -44,6 +60,13 @@ type StateStore interface {
 	GetTask(taskID string) (types.Task, error)
 	UpdateTask(taskID string, updates TaskUpdate) error
 	ListTasks() ([]types.Task, error)
+
+	// Pod operations
+	AddPod(pod types.Pod) error
+	GetPod(podID string) (types.Pod, error)
+	UpdatePod(podID string, updates PodUpdate) error
+	ListPods() ([]types.Pod, error)
+	DeletePod(podID string) error
 
 	// Node operations
 	AddNode(node types.Node) error
@@ -59,6 +82,7 @@ type StateStore interface {
 type InMemoryStore struct {
 	mu    sync.RWMutex
 	tasks map[string]types.Task
+	pods  map[string]types.Pod
 	nodes map[string]types.Node
 }
 
@@ -66,6 +90,7 @@ type InMemoryStore struct {
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
 		tasks: make(map[string]types.Task),
+		pods:  make(map[string]types.Pod),
 		nodes: make(map[string]types.Node),
 	}
 }
@@ -144,6 +169,98 @@ func (s *InMemoryStore) ListTasks() ([]types.Task, error) {
 	}
 
 	return tasks, nil
+}
+
+// AddPod adds a new pod to the store
+func (s *InMemoryStore) AddPod(pod types.Pod) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.pods[pod.PodID]; exists {
+		return ErrPodAlreadyExists
+	}
+
+	s.pods[pod.PodID] = pod
+	return nil
+}
+
+// GetPod retrieves a pod by ID
+func (s *InMemoryStore) GetPod(podID string) (types.Pod, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	pod, exists := s.pods[podID]
+	if !exists {
+		return types.Pod{}, ErrPodNotFound
+	}
+
+	return pod, nil
+}
+
+// UpdatePod updates specific fields of a pod
+func (s *InMemoryStore) UpdatePod(podID string, updates PodUpdate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	pod, exists := s.pods[podID]
+	if !exists {
+		return ErrPodNotFound
+	}
+
+	// Apply updates if provided
+	if updates.Status != nil {
+		pod.Status = *updates.Status
+	}
+	if updates.NodeID != nil {
+		pod.NodeID = *updates.NodeID
+	}
+	if updates.Containers != nil {
+		pod.Containers = updates.Containers
+	}
+	if updates.ScheduledAt != nil {
+		pod.ScheduledAt = updates.ScheduledAt
+	}
+	if updates.StartedAt != nil {
+		pod.StartedAt = updates.StartedAt
+	}
+	if updates.FinishedAt != nil {
+		pod.FinishedAt = updates.FinishedAt
+	}
+	if updates.Message != nil {
+		pod.Message = *updates.Message
+	}
+	if updates.Reason != nil {
+		pod.Reason = *updates.Reason
+	}
+
+	s.pods[podID] = pod
+	return nil
+}
+
+// ListPods returns all pods in the store
+func (s *InMemoryStore) ListPods() ([]types.Pod, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	pods := make([]types.Pod, 0, len(s.pods))
+	for _, pod := range s.pods {
+		pods = append(pods, pod)
+	}
+
+	return pods, nil
+}
+
+// DeletePod removes a pod from the store
+func (s *InMemoryStore) DeletePod(podID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.pods[podID]; !exists {
+		return ErrPodNotFound
+	}
+
+	delete(s.pods, podID)
+	return nil
 }
 
 // AddNode adds a new node to the store
