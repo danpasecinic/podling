@@ -347,7 +347,14 @@ graph LR
         T1[POST /api/v1/tasks<br/>Create Task]
         T2[GET /api/v1/tasks<br/>List Tasks]
         T3[GET /api/v1/tasks/:id<br/>Get Task]
-        
+
+        P[Pods]
+        P1[POST /api/v1/pods<br/>Create Pod]
+        P2[GET /api/v1/pods<br/>List Pods]
+        P3[GET /api/v1/pods/:id<br/>Get Pod]
+        P4[PUT /api/v1/pods/:id/status<br/>Update Pod Status]
+        P5[DELETE /api/v1/pods/:id<br/>Delete Pod]
+
         N[Nodes]
         N1[POST /api/v1/nodes<br/>Register Node]
         N2[GET /api/v1/nodes<br/>List Nodes]
@@ -365,6 +372,11 @@ graph LR
     style T1 fill:#e1f5ff
     style T2 fill:#e1f5ff
     style T3 fill:#e1f5ff
+    style P1 fill:#d4edff
+    style P2 fill:#d4edff
+    style P3 fill:#d4edff
+    style P4 fill:#d4edff
+    style P5 fill:#d4edff
     style N1 fill:#ffe1e1
     style N2 fill:#ffe1e1
     style N3 fill:#ffe1e1
@@ -373,28 +385,134 @@ graph LR
     style W3 fill:#e1ffe1
 ```
 
+## Pod Lifecycle Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant API
+    participant State
+    participant Scheduler
+    participant Worker
+    participant Docker
+
+    User->>CLI: podling pod create my-app --container app:myapp:1.0 --container sidecar:nginx:latest
+    CLI->>API: POST /api/v1/pods
+    API->>API: Validate containers<br/>(unique names, required fields)
+    API->>State: Create Pod (status: pending)
+    State-->>API: Pod ID
+
+    API->>Scheduler: Schedule Pod
+    Scheduler->>State: Get online nodes
+    State-->>Scheduler: [worker-1, worker-2]
+    Scheduler->>Scheduler: Select node (round-robin)
+    Scheduler->>State: Update pod (status: scheduled, node: worker-1)
+    State-->>API: Success
+    API-->>CLI: 201 Created
+    CLI-->>User: Pod created: pod-123
+
+    Note over Worker: Worker receives pod assignment
+
+    loop For each container in pod
+        Worker->>Docker: Pull image (app:myapp:1.0)
+        Docker-->>Worker: Image pulled
+        Worker->>Docker: Pull image (nginx:latest)
+        Docker-->>Worker: Image pulled
+    end
+
+    Worker->>State: Update pod (status: running)
+
+    par Container 1: app
+        Worker->>Docker: Create container (app)
+        Docker-->>Worker: Container ID
+        Worker->>Docker: Start container (app)
+        Worker->>Docker: Start health checker (app)
+        Worker->>Docker: Wait for container (app)
+    and Container 2: sidecar
+        Worker->>Docker: Create container (sidecar)
+        Docker-->>Worker: Container ID
+        Worker->>Docker: Start container (sidecar)
+        Worker->>Docker: Start health checker (sidecar)
+        Worker->>Docker: Wait for container (sidecar)
+    end
+
+    Note over Worker: All containers running
+
+    alt All containers exit successfully
+        Docker->>Worker: Container app exited (code 0)
+        Docker->>Worker: Container sidecar exited (code 0)
+        Worker->>State: Update pod (status: succeeded)
+    else Any container fails
+        Docker->>Worker: Container app exited (code 1)
+        Worker->>State: Update pod (status: failed)
+    end
+
+    Worker->>Docker: Remove all containers
+    Docker-->>Worker: Cleanup complete
+```
+
 ## Error Handling & Recovery
+
+### Task State Diagram
 
 ```mermaid
 stateDiagram-v2
     [*] --> Pending: Task Created
     Pending --> Scheduled: Scheduler Assigns
     Scheduled --> Running: Worker Starts Container
-    
+
     Running --> Completed: Container Exit 0
     Running --> Failed: Container Exit != 0
-    
+
     Pending --> Failed: No Available Nodes (timeout)
     Scheduled --> Failed: Worker Offline
     Running --> Failed: Worker Lost Heartbeat
-    
+
     Failed --> [*]: Task Terminal
     Completed --> [*]: Task Terminal
-    
+
     note right of Failed
         Errors logged to task.Error field
         - Container execution errors
         - Worker communication errors
+        - Resource constraints
+    end note
+```
+
+### Pod State Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Pod Created
+    Pending --> Scheduled: Scheduler Assigns
+    Scheduled --> Running: All Containers Starting
+
+    Running --> Succeeded: All Containers Exit 0
+    Running --> Failed: Any Container Exit != 0
+
+    Pending --> Failed: No Available Nodes (timeout)
+    Scheduled --> Failed: Worker Offline
+    Running --> Failed: Worker Lost Heartbeat
+    Running --> Failed: Image Pull Failed
+
+    Failed --> [*]: Pod Terminal
+    Succeeded --> [*]: Pod Terminal
+
+    note right of Running
+        Pod is "Running" when all containers are running
+        Each container has independent status:
+        - Waiting: Container not started yet
+        - Running: Container executing
+        - Terminated: Container finished
+    end note
+
+    note right of Failed
+        Pod fails if ANY container fails
+        Errors logged per container
+        - Image pull errors
+        - Container execution errors
+        - Health check failures
         - Resource constraints
     end note
 ```
