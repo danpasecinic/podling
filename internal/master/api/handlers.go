@@ -33,7 +33,8 @@ type UpdateTaskStatusRequest struct {
 type RegisterNodeRequest struct {
 	Hostname string `json:"hostname" validate:"required"`
 	Port     int    `json:"port" validate:"required"`
-	Capacity int    `json:"capacity" validate:"required"`
+	CPU      int64  `json:"cpu" validate:"required"`
+	Memory   int64  `json:"memory" validate:"required"`
 }
 
 // CreateTask handles POST /api/v1/tasks.
@@ -153,8 +154,8 @@ func (s *Server) RegisterNode(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
 	}
 
-	if req.Hostname == "" || req.Port == 0 || req.Capacity == 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "hostname, port, and capacity are required"})
+	if req.Hostname == "" || req.Port == 0 || req.CPU == 0 || req.Memory == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "hostname, port, cpu, and memory are required"})
 	}
 
 	node := types.Node{
@@ -162,9 +163,22 @@ func (s *Server) RegisterNode(c echo.Context) error {
 		Hostname:      req.Hostname,
 		Port:          req.Port,
 		Status:        types.NodeOnline,
-		Capacity:      req.Capacity,
 		RunningTasks:  0,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity: types.ResourceList{
+				CPU:    req.CPU,
+				Memory: req.Memory,
+			},
+			Allocatable: types.ResourceList{
+				CPU:    req.CPU,
+				Memory: req.Memory,
+			},
+			Used: types.ResourceList{
+				CPU:    0,
+				Memory: 0,
+			},
+		},
 	}
 
 	if err := s.store.AddNode(node); err != nil {
