@@ -179,8 +179,9 @@ func TestRoundRobin_ConcurrentSelection(t *testing.T) {
 	}
 }
 
-func TestFilterAvailable(t *testing.T) {
+func TestFilterAvailableForTask(t *testing.T) {
 	now := time.Now()
+	emptyTask := types.Task{}
 
 	tests := []struct {
 		name  string
@@ -223,17 +224,17 @@ func TestFilterAvailable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				got := filterAvailable(tt.nodes)
+				got := filterAvailableForTask(emptyTask, tt.nodes)
 				if len(got) != tt.want {
-					t.Errorf("filterAvailable() returned %d nodes, want %d", len(got), tt.want)
+					t.Errorf("filterAvailableForTask() returned %d nodes, want %d", len(got), tt.want)
 				}
 
 				for _, node := range got {
 					if node.Status != types.NodeOnline {
-						t.Errorf("filterAvailable() returned offline node: %s", node.NodeID)
+						t.Errorf("filterAvailableForTask() returned offline node: %s", node.NodeID)
 					}
 					if node.RunningTasks >= node.Capacity {
-						t.Errorf("filterAvailable() returned node at capacity: %s", node.NodeID)
+						t.Errorf("filterAvailableForTask() returned node at capacity: %s", node.NodeID)
 					}
 				}
 			},
