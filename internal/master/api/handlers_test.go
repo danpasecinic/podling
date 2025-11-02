@@ -416,7 +416,11 @@ func TestTaskScheduling(t *testing.T) {
 		NodeID:   "node1",
 		Hostname: "worker1",
 		Status:   types.NodeOnline,
-		Capacity: 10,
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 	_ = server.store.AddNode(node)
 

@@ -184,9 +184,13 @@ func TestPostgresStore_AddNode(t *testing.T) {
 		Hostname:      "worker-1",
 		Port:          8081,
 		Status:        types.NodeOnline,
-		Capacity:      10,
 		RunningTasks:  0,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 
 	err := store.AddNode(node)
@@ -209,9 +213,13 @@ func TestPostgresStore_GetNode(t *testing.T) {
 		Hostname:      "worker-2",
 		Port:          8082,
 		Status:        types.NodeOnline,
-		Capacity:      5,
 		RunningTasks:  2,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 5000, Memory: 5 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 5000, Memory: 5 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 
 	err := store.AddNode(node)
@@ -233,8 +241,15 @@ func TestPostgresStore_GetNode(t *testing.T) {
 	if retrieved.Port != node.Port {
 		t.Errorf("expected Port %d, got %d", node.Port, retrieved.Port)
 	}
-	if retrieved.Capacity != node.Capacity {
-		t.Errorf("expected Capacity %d, got %d", node.Capacity, retrieved.Capacity)
+	if retrieved.Resources == nil {
+		t.Error("expected Resources to be set")
+	} else {
+		if retrieved.Resources.Capacity.CPU != node.Resources.Capacity.CPU {
+			t.Errorf("expected CPU %d, got %d", node.Resources.Capacity.CPU, retrieved.Resources.Capacity.CPU)
+		}
+		if retrieved.Resources.Capacity.Memory != node.Resources.Capacity.Memory {
+			t.Errorf("expected Memory %d, got %d", node.Resources.Capacity.Memory, retrieved.Resources.Capacity.Memory)
+		}
 	}
 
 	// Test non-existent node
@@ -252,9 +267,13 @@ func TestPostgresStore_UpdateNode(t *testing.T) {
 		Hostname:      "worker-3",
 		Port:          8083,
 		Status:        types.NodeOnline,
-		Capacity:      10,
 		RunningTasks:  0,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 
 	err := store.AddNode(node)
@@ -292,9 +311,13 @@ func TestPostgresStore_GetAvailableNodes(t *testing.T) {
 		Hostname:      "worker-1",
 		Port:          8081,
 		Status:        types.NodeOnline,
-		Capacity:      10,
 		RunningTasks:  5,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 	err := store.AddNode(node1)
 	if err != nil {
@@ -306,9 +329,13 @@ func TestPostgresStore_GetAvailableNodes(t *testing.T) {
 		Hostname:      "worker-2",
 		Port:          8082,
 		Status:        types.NodeOffline,
-		Capacity:      10,
 		RunningTasks:  0,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 	err = store.AddNode(node2)
 	if err != nil {
@@ -320,9 +347,13 @@ func TestPostgresStore_GetAvailableNodes(t *testing.T) {
 		Hostname:      "worker-3",
 		Port:          8083,
 		Status:        types.NodeOnline,
-		Capacity:      5,
 		RunningTasks:  5,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 5000, Memory: 5 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 5000, Memory: 5 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 	err = store.AddNode(node3)
 	if err != nil {
@@ -351,27 +382,39 @@ func TestPostgresStore_ListNodes(t *testing.T) {
 			Hostname:      "worker-1",
 			Port:          8081,
 			Status:        types.NodeOnline,
-			Capacity:      10,
 			RunningTasks:  2,
 			LastHeartbeat: time.Now(),
+			Resources: &types.NodeResources{
+				Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Used:        types.ResourceList{CPU: 0, Memory: 0},
+			},
 		},
 		{
 			NodeID:        "node-list-2",
 			Hostname:      "worker-2",
 			Port:          8082,
 			Status:        types.NodeOffline,
-			Capacity:      5,
 			RunningTasks:  0,
 			LastHeartbeat: time.Now().Add(-1 * time.Hour),
+			Resources: &types.NodeResources{
+				Capacity:    types.ResourceList{CPU: 5000, Memory: 5 * 1024 * 1024 * 1024},
+				Allocatable: types.ResourceList{CPU: 5000, Memory: 5 * 1024 * 1024 * 1024},
+				Used:        types.ResourceList{CPU: 0, Memory: 0},
+			},
 		},
 		{
 			NodeID:        "node-list-3",
 			Hostname:      "worker-3",
 			Port:          8083,
 			Status:        types.NodeOnline,
-			Capacity:      15,
 			RunningTasks:  8,
 			LastHeartbeat: time.Now(),
+			Resources: &types.NodeResources{
+				Capacity:    types.ResourceList{CPU: 15000, Memory: 15 * 1024 * 1024 * 1024},
+				Allocatable: types.ResourceList{CPU: 15000, Memory: 15 * 1024 * 1024 * 1024},
+				Used:        types.ResourceList{CPU: 0, Memory: 0},
+			},
 		},
 	}
 
@@ -466,9 +509,13 @@ func TestPostgresStore_UpdateNode_AllFields(t *testing.T) {
 		Hostname:      "worker-1",
 		Port:          8081,
 		Status:        types.NodeOnline,
-		Capacity:      10,
 		RunningTasks:  0,
 		LastHeartbeat: time.Now().Add(-1 * time.Hour),
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 
 	err := store.AddNode(node)

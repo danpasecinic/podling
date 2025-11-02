@@ -179,11 +179,15 @@ func TestAddAndGetNode(t *testing.T) {
 	store := NewInMemoryStore()
 
 	node := types.Node{
-		NodeID:        "worker-1",
-		Hostname:      "192.168.1.100",
-		Port:          8081,
-		Status:        types.NodeOnline,
-		Capacity:      10,
+		NodeID:   "worker-1",
+		Hostname: "192.168.1.100",
+		Port:     8081,
+		Status:   types.NodeOnline,
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 		RunningTasks:  0,
 		LastHeartbeat: time.Now(),
 	}
@@ -213,11 +217,15 @@ func TestAddDuplicateNode(t *testing.T) {
 	store := NewInMemoryStore()
 
 	node := types.Node{
-		NodeID:        "worker-1",
-		Hostname:      "192.168.1.100",
-		Port:          8081,
-		Status:        types.NodeOnline,
-		Capacity:      10,
+		NodeID:   "worker-1",
+		Hostname: "192.168.1.100",
+		Port:     8081,
+		Status:   types.NodeOnline,
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 		LastHeartbeat: time.Now(),
 	}
 
@@ -245,11 +253,15 @@ func TestUpdateNode(t *testing.T) {
 	store := NewInMemoryStore()
 
 	node := types.Node{
-		NodeID:        "worker-1",
-		Hostname:      "192.168.1.100",
-		Port:          8081,
-		Status:        types.NodeOnline,
-		Capacity:      10,
+		NodeID:   "worker-1",
+		Hostname: "192.168.1.100",
+		Port:     8081,
+		Status:   types.NodeOnline,
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 		RunningTasks:  0,
 		LastHeartbeat: time.Now(),
 	}
@@ -302,19 +314,27 @@ func TestListNodes(t *testing.T) {
 
 	nodes := []types.Node{
 		{
-			NodeID:        "worker-1",
-			Hostname:      "192.168.1.100",
-			Port:          8081,
-			Status:        types.NodeOnline,
-			Capacity:      10,
+			NodeID:   "worker-1",
+			Hostname: "192.168.1.100",
+			Port:     8081,
+			Status:   types.NodeOnline,
+			Resources: &types.NodeResources{
+				Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Used:        types.ResourceList{CPU: 0, Memory: 0},
+			},
 			LastHeartbeat: time.Now(),
 		},
 		{
-			NodeID:        "worker-2",
-			Hostname:      "192.168.1.101",
-			Port:          8082,
-			Status:        types.NodeOnline,
-			Capacity:      10,
+			NodeID:   "worker-2",
+			Hostname: "192.168.1.101",
+			Port:     8082,
+			Status:   types.NodeOnline,
+			Resources: &types.NodeResources{
+				Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Used:        types.ResourceList{CPU: 0, Memory: 0},
+			},
 			LastHeartbeat: time.Now(),
 		},
 	}
@@ -341,27 +361,39 @@ func TestGetAvailableNodes(t *testing.T) {
 
 	nodes := []types.Node{
 		{
-			NodeID:        "worker-1",
-			Hostname:      "192.168.1.100",
-			Port:          8081,
-			Status:        types.NodeOnline,
-			Capacity:      10,
+			NodeID:   "worker-1",
+			Hostname: "192.168.1.100",
+			Port:     8081,
+			Status:   types.NodeOnline,
+			Resources: &types.NodeResources{
+				Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Used:        types.ResourceList{CPU: 0, Memory: 0},
+			},
 			LastHeartbeat: time.Now(),
 		},
 		{
-			NodeID:        "worker-2",
-			Hostname:      "192.168.1.101",
-			Port:          8082,
-			Status:        types.NodeOffline,
-			Capacity:      10,
+			NodeID:   "worker-2",
+			Hostname: "192.168.1.101",
+			Port:     8082,
+			Status:   types.NodeOffline,
+			Resources: &types.NodeResources{
+				Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Used:        types.ResourceList{CPU: 0, Memory: 0},
+			},
 			LastHeartbeat: time.Now().Add(-2 * time.Minute),
 		},
 		{
-			NodeID:        "worker-3",
-			Hostname:      "192.168.1.102",
-			Port:          8083,
-			Status:        types.NodeOnline,
-			Capacity:      10,
+			NodeID:   "worker-3",
+			Hostname: "192.168.1.102",
+			Port:     8083,
+			Status:   types.NodeOnline,
+			Resources: &types.NodeResources{
+				Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+				Used:        types.ResourceList{CPU: 0, Memory: 0},
+			},
 			LastHeartbeat: time.Now(),
 		},
 	}
