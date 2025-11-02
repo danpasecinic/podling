@@ -618,3 +618,187 @@ func TestExecuteTaskWithEnvVars(t *testing.T) {
 		t.Error("task execution timed out")
 	}
 }
+
+// TestHandleUnhealthyContainer tests the handleUnhealthyContainer function
+func TestHandleUnhealthyContainer(t *testing.T) {
+	t.Run(
+		"handles unhealthy container with restart policy", func(t *testing.T) {
+			statusUpdateReceived := false
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						if r.URL.Path == "/api/v1/nodes" && r.Method == http.MethodPost {
+							w.WriteHeader(http.StatusOK)
+							return
+						}
+						if contains(r.URL.Path, "/api/v1/tasks/") && contains(r.URL.Path, "/status") {
+							statusUpdateReceived = true
+							var payload map[string]interface{}
+							body, _ := io.ReadAll(r.Body)
+							_ = json.Unmarshal(body, &payload)
+
+							if payload["status"] != string(types.TaskFailed) {
+								t.Errorf("expected status to be %s, got %v", types.TaskFailed, payload["status"])
+							}
+							if payload["error"] != "container failed health check" {
+								t.Errorf("expected error message about health check, got %v", payload["error"])
+							}
+							w.WriteHeader(http.StatusOK)
+							return
+						}
+						w.WriteHeader(http.StatusOK)
+					},
+				),
+			)
+			defer server.Close()
+
+			agent, err := NewAgent("test-node", server.URL)
+			if err != nil {
+				t.Fatalf("failed to create agent: %v", err)
+			}
+			defer agent.Stop()
+
+			task := &types.Task{
+				TaskID:        "unhealthy-task",
+				Name:          "test",
+				ContainerID:   "container-123",
+				RestartPolicy: types.RestartPolicyAlways,
+			}
+
+			agent.mu.Lock()
+			agent.runningTasks[task.TaskID] = task
+			agent.mu.Unlock()
+
+			// Trigger unhealthy callback
+			agent.handleUnhealthyContainer(task.TaskID)
+
+			// Give time for status update
+			time.Sleep(100 * time.Millisecond)
+
+			if !statusUpdateReceived {
+				t.Error("expected status update to be sent to master")
+			}
+		},
+	)
+
+	t.Run(
+		"handles unhealthy container with OnFailure policy", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusOK)
+					},
+				),
+			)
+			defer server.Close()
+
+			agent, err := NewAgent("test-node", server.URL)
+			if err != nil {
+				t.Fatalf("failed to create agent: %v", err)
+			}
+			defer agent.Stop()
+
+			task := &types.Task{
+				TaskID:        "task-onfailure",
+				Name:          "test",
+				ContainerID:   "container-456",
+				RestartPolicy: types.RestartPolicyOnFailure,
+			}
+
+			agent.mu.Lock()
+			agent.runningTasks[task.TaskID] = task
+			agent.mu.Unlock()
+
+			// Should not panic
+			agent.handleUnhealthyContainer(task.TaskID)
+		},
+	)
+
+	t.Run(
+		"handles unhealthy container with Never policy", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusOK)
+					},
+				),
+			)
+			defer server.Close()
+
+			agent, err := NewAgent("test-node", server.URL)
+			if err != nil {
+				t.Fatalf("failed to create agent: %v", err)
+			}
+			defer agent.Stop()
+
+			task := &types.Task{
+				TaskID:        "task-never",
+				Name:          "test",
+				ContainerID:   "container-789",
+				RestartPolicy: types.RestartPolicyNever,
+			}
+
+			agent.mu.Lock()
+			agent.runningTasks[task.TaskID] = task
+			agent.mu.Unlock()
+
+			// Should not panic
+			agent.handleUnhealthyContainer(task.TaskID)
+		},
+	)
+
+	t.Run(
+		"handles task not found", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusOK)
+					},
+				),
+			)
+			defer server.Close()
+
+			agent, err := NewAgent("test-node", server.URL)
+			if err != nil {
+				t.Fatalf("failed to create agent: %v", err)
+			}
+			defer agent.Stop()
+
+			// Call with non-existent task - should not panic
+			agent.handleUnhealthyContainer("nonexistent-task")
+		},
+	)
+
+	t.Run(
+		"handles empty restart policy", func(t *testing.T) {
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusOK)
+					},
+				),
+			)
+			defer server.Close()
+
+			agent, err := NewAgent("test-node", server.URL)
+			if err != nil {
+				t.Fatalf("failed to create agent: %v", err)
+			}
+			defer agent.Stop()
+
+			task := &types.Task{
+				TaskID:        "task-empty-policy",
+				Name:          "test",
+				ContainerID:   "container-empty",
+				RestartPolicy: "",
+			}
+
+			agent.mu.Lock()
+			agent.runningTasks[task.TaskID] = task
+			agent.mu.Unlock()
+
+			// Should not panic
+			agent.handleUnhealthyContainer(task.TaskID)
+		},
+	)
+}

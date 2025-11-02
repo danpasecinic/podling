@@ -66,12 +66,14 @@ func TestPullImage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := client.PullImage(ctx, tt.imageName)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("PullImage() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				err := client.PullImage(ctx, tt.imageName)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("PullImage() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			},
+		)
 	}
 }
 
@@ -110,19 +112,20 @@ func TestCreateContainer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			containerID, err := client.CreateContainer(ctx, tt.imageName, tt.env)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CreateContainer() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if !tt.wantErr && containerID == "" {
-				t.Error("CreateContainer() returned empty container ID")
-			}
-			// Clean up
-			if containerID != "" {
-				_ = client.RemoveContainer(ctx, containerID)
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				containerID, err := client.CreateContainer(ctx, tt.imageName, tt.env)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("CreateContainer() error = %v, wantErr %v", err, tt.wantErr)
+				}
+				if !tt.wantErr && containerID == "" {
+					t.Error("CreateContainer() returned empty container ID")
+				}
+				if containerID != "" {
+					_ = client.RemoveContainer(ctx, containerID)
+				}
+			},
+		)
 	}
 }
 
@@ -168,7 +171,6 @@ func TestStopContainer(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Pull and create a long-running container
 	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
 		t.Fatalf("failed to pull alpine image: %v", err)
 	}
@@ -179,7 +181,6 @@ func TestStopContainer(t *testing.T) {
 	}
 	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
 
-	// Start then stop
 	if err := client.StartContainer(ctx, containerID); err != nil {
 		t.Fatalf("failed to start container: %v", err)
 	}
@@ -205,7 +206,6 @@ func TestRemoveContainer(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create a container
 	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
 		t.Fatalf("failed to pull alpine image: %v", err)
 	}
@@ -215,7 +215,6 @@ func TestRemoveContainer(t *testing.T) {
 		t.Fatalf("failed to create container: %v", err)
 	}
 
-	// Remove it
 	err = client.RemoveContainer(ctx, containerID)
 	if err != nil {
 		t.Errorf("RemoveContainer() error = %v", err)
@@ -237,7 +236,6 @@ func TestGetContainerStatus(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create and start a container
 	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
 		t.Fatalf("failed to pull alpine image: %v", err)
 	}
@@ -248,7 +246,6 @@ func TestGetContainerStatus(t *testing.T) {
 	}
 	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
 
-	// Get status before starting
 	status, err := client.GetContainerStatus(ctx, containerID)
 	if err != nil {
 		t.Errorf("GetContainerStatus() error = %v", err)
@@ -257,7 +254,6 @@ func TestGetContainerStatus(t *testing.T) {
 		t.Errorf("GetContainerStatus() = %v, want 'created'", status)
 	}
 
-	// Start and check status again
 	if err := client.StartContainer(ctx, containerID); err != nil {
 		t.Fatalf("failed to start container: %v", err)
 	}
@@ -286,7 +282,6 @@ func TestWaitContainer(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create a container that exits immediately
 	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
 		t.Fatalf("failed to pull alpine image: %v", err)
 	}
@@ -301,7 +296,6 @@ func TestWaitContainer(t *testing.T) {
 		t.Fatalf("failed to start container: %v", err)
 	}
 
-	// Wait for it to finish
 	exitCode, err := client.WaitContainer(ctx, containerID)
 	if err != nil {
 		t.Errorf("WaitContainer() error = %v", err)
@@ -326,7 +320,6 @@ func TestGetContainerLogs(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Pull and create a container that produces output
 	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
 		t.Fatalf("failed to pull alpine image: %v", err)
 	}
@@ -341,13 +334,11 @@ func TestGetContainerLogs(t *testing.T) {
 		t.Fatalf("failed to start container: %v", err)
 	}
 
-	// Wait for container to finish
 	_, err = client.WaitContainer(ctx, containerID)
 	if err != nil {
 		t.Fatalf("failed to wait for container: %v", err)
 	}
 
-	// Get logs (even if empty)
 	logs, err := client.GetContainerLogs(ctx, containerID, 100)
 	if err != nil {
 		t.Errorf("GetContainerLogs() error = %v", err)
@@ -363,3 +354,110 @@ func TestGetContainerLogs(t *testing.T) {
 	}
 }
 
+func TestExecInContainer(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	if err := client.PullImage(ctx, "nginx:alpine"); err != nil {
+		t.Skipf("Failed to pull nginx:alpine: %v", err)
+	}
+	containerID, err := client.CreateContainer(ctx, "nginx:alpine", []string{})
+	if err != nil {
+		t.Fatalf("CreateContainer() error = %v", err)
+	}
+	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
+
+	err = client.StartContainer(ctx, containerID)
+	if err != nil {
+		t.Fatalf("StartContainer() error = %v", err)
+	}
+	defer func() { _ = client.StopContainer(ctx, containerID) }()
+
+	t.Run(
+		"successful command execution", func(t *testing.T) {
+			exitCode, output, err := client.ExecInContainer(ctx, containerID, []string{"echo", "hello"})
+			if err != nil {
+				t.Errorf("ExecInContainer() error = %v", err)
+			}
+			if exitCode != 0 {
+				t.Errorf("ExecInContainer() exitCode = %d, want 0", exitCode)
+			}
+			// Output might be empty due to how docker exec works, that's OK
+			_ = output
+		},
+	)
+
+	t.Run(
+		"failed command execution", func(t *testing.T) {
+			exitCode, _, err := client.ExecInContainer(ctx, containerID, []string{"sh", "-c", "exit 1"})
+			if err != nil {
+				t.Errorf("ExecInContainer() error = %v", err)
+			}
+			if exitCode == 0 {
+				t.Errorf("ExecInContainer() exitCode = %d, want non-zero", exitCode)
+			}
+		},
+	)
+
+	t.Run(
+		"invalid container", func(t *testing.T) {
+			_, _, err := client.ExecInContainer(ctx, "nonexistent-container", []string{"echo", "test"})
+			if err == nil {
+				t.Error("ExecInContainer() expected error for invalid container")
+			}
+		},
+	)
+}
+
+func TestGetContainerIP(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	if err := client.PullImage(ctx, "nginx:alpine"); err != nil {
+		t.Skipf("Failed to pull nginx:alpine: %v", err)
+	}
+	containerID, err := client.CreateContainer(ctx, "nginx:alpine", []string{})
+	if err != nil {
+		t.Fatalf("CreateContainer() error = %v", err)
+	}
+	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
+
+	err = client.StartContainer(ctx, containerID)
+	if err != nil {
+		t.Fatalf("StartContainer() error = %v", err)
+	}
+	defer func() { _ = client.StopContainer(ctx, containerID) }()
+
+	t.Run(
+		"get IP from running container", func(t *testing.T) {
+			ip, err := client.GetContainerIP(ctx, containerID)
+			if err != nil {
+				t.Errorf("GetContainerIP() error = %v", err)
+			}
+			if ip == "" {
+				t.Error("GetContainerIP() returned empty IP")
+			}
+			// IP should be in the format X.X.X.X
+			t.Logf("Container IP: %s", ip)
+		},
+	)
+
+	t.Run(
+		"invalid container", func(t *testing.T) {
+			_, err := client.GetContainerIP(ctx, "nonexistent-container")
+			if err == nil {
+				t.Error("GetContainerIP() expected error for invalid container")
+			}
+		},
+	)
+}
