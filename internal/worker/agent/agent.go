@@ -15,12 +15,13 @@ import (
 	"github.com/danpasecinic/podling/internal/worker/health"
 )
 
-// Agent manages task execution and communication with the master.
+// Agent manages task and pod execution and communication with the master.
 type Agent struct {
 	nodeID               string
 	masterURL            string
 	dockerClient         *docker.Client
 	runningTasks         map[string]*types.Task
+	runningPods          map[string]*PodExecution
 	healthCheckers       map[string]*health.Checker
 	mu                   sync.RWMutex
 	heartbeatTicker      *time.Ticker
@@ -41,6 +42,7 @@ func NewAgent(nodeID, masterURL string) (*Agent, error) {
 		masterURL:            masterURL,
 		dockerClient:         dockerClient,
 		runningTasks:         make(map[string]*types.Task),
+		runningPods:          make(map[string]*PodExecution),
 		healthCheckers:       make(map[string]*health.Checker),
 		stopChan:             make(chan struct{}),
 		consecutiveFailures:  0,
@@ -356,15 +358,12 @@ func (a *Agent) handleUnhealthyContainer(taskID string) {
 
 	log.Printf("[health] task %s restart policy: %s", taskID, restartPolicy)
 
-	// For now, just log and update status
-	// In a full implementation, we would restart the container here
 	if restartPolicy == types.RestartPolicyAlways || restartPolicy == types.RestartPolicyOnFailure {
 		log.Printf("[health] container restart not yet implemented - would restart task %s", taskID)
 		// TODO: Implement container restart logic
 		// This requires careful coordination with the main ExecuteTask goroutine
 	}
 
-	// Update task status to indicate health issue
 	if err := a.updateTaskStatus(
 		taskID, types.TaskFailed, task.ContainerID, "container failed health check",
 	); err != nil {

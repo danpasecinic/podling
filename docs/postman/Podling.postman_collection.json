@@ -1,215 +1,443 @@
 {
-"info": {
-"_postman_id": "podling-api-collection",
-"name": "Podling API",
-"description": "Complete API collection for Podling container orchestrator (Master + Worker)",
-"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-},
-"item": [
-{
-"name": "Master - Health Check",
-"request": {
-"method": "GET",
-"header": [],
-"url": {
-"raw": "{{master_url}}/health",
-"host": ["{{master_url}}"],
-"path": ["health"]
-},
-"description": "Check if the master server is running"
-},
-"response": []
-},
-{
-"name": "Worker - Health Check",
-"request": {
-"method": "GET",
-"header": [],
-"url": {
-"raw": "{{worker_url}}/health",
-"host": ["{{worker_url}}"],
-"path": ["health"]
-},
-"description": "Check if the worker is running"
-},
-"response": []
-},
-{
-"name": "Master - Tasks",
-"item": [
-{
-"name": "Create Task",
-"request": {
-"method": "POST",
-"header": [
-{
-"key": "Content-Type",
-"value": "application/json"
-}
-],
-"body": {
-"mode": "raw",
-"raw": "{\n  \"name\": \"nginx-task\",\n  \"image\": \"nginx:alpine\",\n  \"env\": {\n    \"PORT\": \"8080\"\n  }\n}"
-},
-"url": {
-"raw": "{{master_url}}/api/v1/tasks",
-"host": ["{{master_url}}"],
-"path": ["api", "v1", "tasks"]
-},
-"description": "Create a new task and automatically schedule it to an available node"
-},
-"response": []
-},
-{
-"name": "List Tasks",
-"request": {
-"method": "GET",
-"header": [],
-"url": {
-"raw": "{{master_url}}/api/v1/tasks",
-"host": ["{{master_url}}"],
-"path": ["api", "v1", "tasks"]
-},
-"description": "Get all tasks in the system"
-},
-"response": []
-},
-{
-"name": "Get Task",
-"request": {
-"method": "GET",
-"header": [],
-"url": {
-"raw": "{{master_url}}/api/v1/tasks/{{task_id}}",
-"host": ["{{master_url}}"],
-"path": ["api", "v1", "tasks", "{{task_id}}"]
-},
-"description": "Get specific task details by ID"
-},
-"response": []
-},
-{
-"name": "Update Task Status",
-"request": {
-"method": "PUT",
-"header": [
-{
-"key": "Content-Type",
-"value": "application/json"
-}
-],
-"body": {
-"mode": "raw",
-"raw": "{\n  \"status\": \"running\",\n  \"containerId\": \"abc123def456\"\n}"
-},
-"url": {
-"raw": "{{master_url}}/api/v1/tasks/{{task_id}}/status",
-"host": ["{{master_url}}"],
-"path": ["api", "v1", "tasks", "{{task_id}}", "status"]
-},
-"description": "Update task execution status (typically called by workers)"
-},
-"response": []
-}
-]
-},
-{
-"name": "Master - Nodes",
-"item": [
-{
-"name": "Register Node",
-"request": {
-"method": "POST",
-"header": [
-{
-"key": "Content-Type",
-"value": "application/json"
-}
-],
-"body": {
-"mode": "raw",
-"raw": "{\n  \"hostname\": \"localhost\",\n  \"port\": 8081,\n  \"capacity\": 10\n}"
-},
-"url": {
-"raw": "{{master_url}}/api/v1/nodes/register",
-"host": ["{{master_url}}"],
-"path": ["api", "v1", "nodes", "register"]
-},
-"description": "Register a worker node with the master"
-},
-"response": []
-},
-{
-"name": "Node Heartbeat",
-"request": {
-"method": "POST",
-"header": [],
-"url": {
-"raw": "{{master_url}}/api/v1/nodes/{{node_id}}/heartbeat",
-"host": ["{{master_url}}"],
-"path": ["api", "v1", "nodes", "{{node_id}}", "heartbeat"]
-},
-"description": "Send heartbeat to update node's last seen timestamp"
-},
-"response": []
-},
-{
-"name": "List Nodes",
-"request": {
-"method": "GET",
-"header": [],
-"url": {
-"raw": "{{master_url}}/api/v1/nodes",
-"host": ["{{master_url}}"],
-"path": ["api", "v1", "nodes"]
-},
-"description": "Get all registered nodes"
-},
-"response": []
-}
-]
-},
-{
-"name": "Worker - Tasks",
-"item": [
-{
-"name": "Execute Task",
-"request": {
-"method": "POST",
-"header": [
-{
-"key": "Content-Type",
-"value": "application/json"
-}
-],
-"body": {
-"mode": "raw",
-"raw": "{\n  \"task\": {\n    \"taskId\": \"{{task_id}}\",\n    \"name\": \"test-task\",\n    \"image\": \"nginx:alpine\",\n    \"env\": {\n      \"TEST\": \"value\"\n    },\n    \"status\": \"scheduled\",\n    \"nodeId\": \"{{node_id}}\"\n  }\n}"
-},
-"url": {
-"raw": "{{worker_url}}/api/v1/tasks/{{task_id}}/execute",
-"host": ["{{worker_url}}"],
-"path": ["api", "v1", "tasks", "{{task_id}}", "execute"]
-},
-"description": "Execute a task on the worker (runs Docker container)"
-},
-"response": []
-},
-{
-"name": "Get Task Status",
-"request": {
-"method": "GET",
-"header": [],
-"url": {
-"raw": "{{worker_url}}/api/v1/tasks/{{task_id}}/status",
-"host": ["{{worker_url}}"],
-"path": ["api", "v1", "tasks", "{{task_id}}", "status"]
-},
-"description": "Get status of a running task on the worker"
-},
-"response": []
-}
-]
-}
-]
+  "info": {
+    "_postman_id": "podling-api-collection",
+    "name": "Podling API",
+    "description": "Complete API collection for Podling container orchestrator (Master + Worker)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Master - Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{master_url}}/health",
+          "host": [
+            "{{master_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Check if the master server is running"
+      },
+      "response": []
+    },
+    {
+      "name": "Worker - Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{worker_url}}/health",
+          "host": [
+            "{{worker_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Check if the worker is running"
+      },
+      "response": []
+    },
+    {
+      "name": "Master - Tasks",
+      "item": [
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"nginx-task\",\n  \"image\": \"nginx:alpine\",\n  \"env\": {\n    \"PORT\": \"8080\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{master_url}}/api/v1/tasks",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ]
+            },
+            "description": "Create a new task and automatically schedule it to an available node"
+          },
+          "response": []
+        },
+        {
+          "name": "List Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{master_url}}/api/v1/tasks",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ]
+            },
+            "description": "Get all tasks in the system"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{master_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Get specific task details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Task Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"running\",\n  \"containerId\": \"abc123def456\"\n}"
+            },
+            "url": {
+              "raw": "{{master_url}}/api/v1/tasks/{{task_id}}/status",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "status"
+              ]
+            },
+            "description": "Update task execution status (typically called by workers)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Master - Pods",
+      "item": [
+        {
+          "name": "Create Pod - Single Container",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"web-pod\",\n  \"namespace\": \"default\",\n  \"containers\": [\n    {\n      \"name\": \"nginx\",\n      \"image\": \"nginx:latest\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{master_url}}/api/v1/pods",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pods"
+              ]
+            },
+            "description": "Create a new pod with a single container"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Pod - Multi-Container",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"multi-app\",\n  \"namespace\": \"production\",\n  \"labels\": {\n    \"app\": \"myapp\",\n    \"version\": \"1.0\",\n    \"tier\": \"frontend\"\n  },\n  \"containers\": [\n    {\n      \"name\": \"app\",\n      \"image\": \"myapp:1.0\",\n      \"env\": {\n        \"PORT\": \"8080\",\n        \"ENV\": \"production\"\n      }\n    },\n    {\n      \"name\": \"sidecar\",\n      \"image\": \"nginx:latest\",\n      \"env\": {\n        \"PROXY_PASS\": \"http://localhost:8080\"\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{master_url}}/api/v1/pods",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pods"
+              ]
+            },
+            "description": "Create a pod with multiple containers sharing lifecycle"
+          },
+          "response": []
+        },
+        {
+          "name": "List Pods",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{master_url}}/api/v1/pods",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pods"
+              ]
+            },
+            "description": "Get all pods in the system"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pod",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{master_url}}/api/v1/pods/{{pod_id}}",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pods",
+                "{{pod_id}}"
+              ]
+            },
+            "description": "Get specific pod details including all container statuses"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Pod Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"running\",\n  \"message\": \"All containers started\",\n  \"reason\": \"Started\",\n  \"containers\": [\n    {\n      \"name\": \"nginx\",\n      \"image\": \"nginx:latest\",\n      \"status\": \"running\",\n      \"containerId\": \"container-abc123\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{master_url}}/api/v1/pods/{{pod_id}}/status",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pods",
+                "{{pod_id}}",
+                "status"
+              ]
+            },
+            "description": "Update pod status with container details (typically called by workers)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Pod",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{master_url}}/api/v1/pods/{{pod_id}}",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pods",
+                "{{pod_id}}"
+              ]
+            },
+            "description": "Delete a pod and all its containers"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Master - Nodes",
+      "item": [
+        {
+          "name": "Register Node",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hostname\": \"localhost\",\n  \"port\": 8081,\n  \"capacity\": 10\n}"
+            },
+            "url": {
+              "raw": "{{master_url}}/api/v1/nodes/register",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "register"
+              ]
+            },
+            "description": "Register a worker node with the master"
+          },
+          "response": []
+        },
+        {
+          "name": "Node Heartbeat",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{master_url}}/api/v1/nodes/{{node_id}}/heartbeat",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes",
+                "{{node_id}}",
+                "heartbeat"
+              ]
+            },
+            "description": "Send heartbeat to update node's last seen timestamp"
+          },
+          "response": []
+        },
+        {
+          "name": "List Nodes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{master_url}}/api/v1/nodes",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "nodes"
+              ]
+            },
+            "description": "Get all registered nodes"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Worker - Tasks",
+      "item": [
+        {
+          "name": "Execute Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"task\": {\n    \"taskId\": \"{{task_id}}\",\n    \"name\": \"test-task\",\n    \"image\": \"nginx:alpine\",\n    \"env\": {\n      \"TEST\": \"value\"\n    },\n    \"status\": \"scheduled\",\n    \"nodeId\": \"{{node_id}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{worker_url}}/api/v1/tasks/{{task_id}}/execute",
+              "host": [
+                "{{worker_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "execute"
+              ]
+            },
+            "description": "Execute a task on the worker (runs Docker container)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Task Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{worker_url}}/api/v1/tasks/{{task_id}}/status",
+              "host": [
+                "{{worker_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "status"
+              ]
+            },
+            "description": "Get status of a running task on the worker"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
 }

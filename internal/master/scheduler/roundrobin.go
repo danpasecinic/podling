@@ -41,6 +41,23 @@ func (rr *RoundRobin) SelectNode(_ types.Task, nodes []types.Node) (*types.Node,
 	return &availableNodes[rr.lastUsed], nil
 }
 
+// SelectNodeForPod selects the next available node for a pod in round-robin order.
+// Pods can contain multiple containers, but for now they follow the same scheduling
+// logic as tasks. Future improvements could consider pod resource requirements.
+// Returns ErrNoAvailableNodes if no suitable nodes are found.
+func (rr *RoundRobin) SelectNodeForPod(_ types.Pod, nodes []types.Node) (*types.Node, error) {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+
+	availableNodes := filterAvailable(nodes)
+	if len(availableNodes) == 0 {
+		return nil, ErrNoAvailableNodes
+	}
+
+	rr.lastUsed = (rr.lastUsed + 1) % len(availableNodes)
+	return &availableNodes[rr.lastUsed], nil
+}
+
 func filterAvailable(nodes []types.Node) []types.Node {
 	available := make([]types.Node, 0)
 	for _, node := range nodes {
