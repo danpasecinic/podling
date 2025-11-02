@@ -645,9 +645,14 @@ func (s *PostgresStore) AddNode(node types.Node) error {
 	}
 
 	query := `
-		INSERT INTO nodes (node_id, hostname, port, status, capacity, running_tasks, last_heartbeat)
+		INSERT INTO nodes (node_id, hostname, port, status, running_tasks, last_heartbeat, resources)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
+
+	resourcesJSON, err := json.Marshal(node.Resources)
+	if err != nil {
+		return fmt.Errorf("failed to marshal resources: %w", err)
+	}
 
 	_, err = s.db.Exec(
 		query,
@@ -655,9 +660,9 @@ func (s *PostgresStore) AddNode(node types.Node) error {
 		node.Hostname,
 		node.Port,
 		node.Status,
-		node.Capacity,
 		node.RunningTasks,
 		node.LastHeartbeat,
+		resourcesJSON,
 	)
 
 	if err != nil {
@@ -670,21 +675,28 @@ func (s *PostgresStore) AddNode(node types.Node) error {
 // GetNode retrieves a node by ID
 func (s *PostgresStore) GetNode(nodeID string) (types.Node, error) {
 	query := `
-		SELECT node_id, hostname, port, status, capacity, running_tasks, last_heartbeat
+		SELECT node_id, hostname, port, status, running_tasks, last_heartbeat, resources
 		FROM nodes
 		WHERE node_id = $1
 	`
 
 	var node types.Node
+	var resourcesJSON []byte
 	err := s.db.QueryRow(query, nodeID).Scan(
 		&node.NodeID,
 		&node.Hostname,
 		&node.Port,
 		&node.Status,
-		&node.Capacity,
 		&node.RunningTasks,
 		&node.LastHeartbeat,
+		&resourcesJSON,
 	)
+
+	if err == nil {
+		if err := json.Unmarshal(resourcesJSON, &node.Resources); err != nil {
+			return types.Node{}, fmt.Errorf("failed to unmarshal resources: %w", err)
+		}
+	}
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return types.Node{}, ErrNodeNotFound
@@ -742,7 +754,7 @@ func (s *PostgresStore) UpdateNode(nodeID string, updates NodeUpdate) error {
 // ListNodes returns all nodes in the store
 func (s *PostgresStore) ListNodes() ([]types.Node, error) {
 	query := `
-		SELECT node_id, hostname, port, status, capacity, running_tasks, last_heartbeat
+		SELECT node_id, hostname, port, status, running_tasks, last_heartbeat, resources
 		FROM nodes
 		ORDER BY last_heartbeat DESC
 	`
@@ -758,17 +770,22 @@ func (s *PostgresStore) ListNodes() ([]types.Node, error) {
 	var nodes []types.Node
 	for rows.Next() {
 		var node types.Node
+		var resourcesJSON []byte
 		err := rows.Scan(
 			&node.NodeID,
 			&node.Hostname,
 			&node.Port,
 			&node.Status,
-			&node.Capacity,
 			&node.RunningTasks,
 			&node.LastHeartbeat,
+			&resourcesJSON,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan node: %w", err)
+		}
+
+		if err := json.Unmarshal(resourcesJSON, &node.Resources); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal resources: %w", err)
 		}
 
 		nodes = append(nodes, node)
@@ -784,9 +801,9 @@ func (s *PostgresStore) ListNodes() ([]types.Node, error) {
 // GetAvailableNodes returns all online nodes with available capacity
 func (s *PostgresStore) GetAvailableNodes() ([]types.Node, error) {
 	query := `
-		SELECT node_id, hostname, port, status, capacity, running_tasks, last_heartbeat
+		SELECT node_id, hostname, port, status, running_tasks, last_heartbeat, resources
 		FROM nodes
-		WHERE status = $1 AND running_tasks < capacity
+		WHERE status = $1
 		ORDER BY running_tasks ASC
 	`
 
@@ -801,17 +818,28 @@ func (s *PostgresStore) GetAvailableNodes() ([]types.Node, error) {
 	var nodes []types.Node
 	for rows.Next() {
 		var node types.Node
+		var resourcesJSON []byte
 		err := rows.Scan(
 			&node.NodeID,
 			&node.Hostname,
 			&node.Port,
 			&node.Status,
-			&node.Capacity,
 			&node.RunningTasks,
 			&node.LastHeartbeat,
+			&resourcesJSON,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan node: %w", err)
+		}
+
+		if err := json.Unmarshal(resourcesJSON, &node.Resources); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal resources: %w", err)
+		}
+
+		// Filter nodes that have available capacity
+		maxSlots := node.GetMaxTaskSlots()
+		if node.RunningTasks >= maxSlots {
+			continue
 		}
 
 		nodes = append(nodes, node)
