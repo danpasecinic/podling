@@ -185,16 +185,19 @@ func TestFilterAvailableForTask(t *testing.T) {
 
 	tests := []struct {
 		name  string
+		task  types.Task
 		nodes []types.Node
 		want  int
 	}{
 		{
 			name:  "empty nodes",
+			task:  emptyTask,
 			nodes: []types.Node{},
 			want:  0,
 		},
 		{
 			name: "all available",
+			task: emptyTask,
 			nodes: []types.Node{
 				{NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 5, LastHeartbeat: now},
 				{NodeID: "node2", Status: types.NodeOnline, Capacity: 5, RunningTasks: 0, LastHeartbeat: now},
@@ -203,6 +206,7 @@ func TestFilterAvailableForTask(t *testing.T) {
 		},
 		{
 			name: "mixed availability",
+			task: emptyTask,
 			nodes: []types.Node{
 				{NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 5},
 				{NodeID: "node2", Status: types.NodeOffline, Capacity: 10, RunningTasks: 0},
@@ -213,9 +217,91 @@ func TestFilterAvailableForTask(t *testing.T) {
 		},
 		{
 			name: "none available",
+			task: emptyTask,
 			nodes: []types.Node{
 				{NodeID: "node1", Status: types.NodeOffline, Capacity: 10, RunningTasks: 0},
 				{NodeID: "node2", Status: types.NodeOnline, Capacity: 5, RunningTasks: 5},
+			},
+			want: 0,
+		},
+		{
+			name: "task with resources - fits on all nodes",
+			task: types.Task{
+				Resources: types.ResourceRequirements{
+					Requests: types.ResourceList{CPU: 500, Memory: 256 * 1024 * 1024},
+				},
+			},
+			nodes: []types.Node{
+				{
+					NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					Resources: &types.NodeResources{
+						Capacity:    types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+						Allocatable: types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+						Used:        types.ResourceList{CPU: 0, Memory: 0},
+					},
+				},
+				{
+					NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					Resources: &types.NodeResources{
+						Capacity:    types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+						Allocatable: types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+						Used:        types.ResourceList{CPU: 0, Memory: 0},
+					},
+				},
+			},
+			want: 2,
+		},
+		{
+			name: "task with resources - fits on one node",
+			task: types.Task{
+				Resources: types.ResourceRequirements{
+					Requests: types.ResourceList{CPU: 1500, Memory: 1024 * 1024 * 1024},
+				},
+			},
+			nodes: []types.Node{
+				{
+					NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					Resources: &types.NodeResources{
+						Capacity:    types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+						Allocatable: types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+						Used:        types.ResourceList{CPU: 1000, Memory: 512 * 1024 * 1024}, // Not enough
+					},
+				},
+				{
+					NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					Resources: &types.NodeResources{
+						Capacity:    types.ResourceList{CPU: 4000, Memory: 4 * 1024 * 1024 * 1024},
+						Allocatable: types.ResourceList{CPU: 4000, Memory: 4 * 1024 * 1024 * 1024},
+						Used:        types.ResourceList{CPU: 0, Memory: 0}, // Fits!
+					},
+				},
+			},
+			want: 1,
+		},
+		{
+			name: "task with resources - fits nowhere",
+			task: types.Task{
+				Resources: types.ResourceRequirements{
+					Requests: types.ResourceList{CPU: 3000, Memory: 5 * 1024 * 1024 * 1024},
+				},
+			},
+			nodes: []types.Node{
+				{
+					NodeID: "node1", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					Resources: &types.NodeResources{
+						Capacity:    types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+						Allocatable: types.ResourceList{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+						Used:        types.ResourceList{CPU: 0, Memory: 0},
+					},
+				},
+				{
+					NodeID: "node2", Status: types.NodeOnline, Capacity: 10, RunningTasks: 0,
+					Resources: &types.NodeResources{
+						Capacity:    types.ResourceList{CPU: 2000, Memory: 4 * 1024 * 1024 * 1024},
+						Allocatable: types.ResourceList{CPU: 2000, Memory: 4 * 1024 * 1024 * 1024},
+						Used:        types.ResourceList{CPU: 0, Memory: 0},
+					},
+				},
 			},
 			want: 0,
 		},
@@ -224,7 +310,7 @@ func TestFilterAvailableForTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				got := filterAvailableForTask(emptyTask, tt.nodes)
+				got := filterAvailableForTask(tt.task, tt.nodes)
 				if len(got) != tt.want {
 					t.Errorf("filterAvailableForTask() returned %d nodes, want %d", len(got), tt.want)
 				}
