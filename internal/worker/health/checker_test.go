@@ -14,7 +14,11 @@ type mockDockerHealthClient struct {
 	IPFunc   func(ctx context.Context, containerID string) (string, error)
 }
 
-func (m *mockDockerHealthClient) ExecInContainer(ctx context.Context, containerID string, cmd []string) (int, string, error) {
+func (m *mockDockerHealthClient) ExecInContainer(ctx context.Context, containerID string, cmd []string) (
+	int,
+	string,
+	error,
+) {
 	if m.ExecFunc != nil {
 		return m.ExecFunc(ctx, containerID, cmd)
 	}
@@ -92,9 +96,9 @@ func TestChecker_Stop(t *testing.T) {
 
 func TestChecker_updateStatus(t *testing.T) {
 	mockDocker := &mockDockerHealthClient{}
-	unhealthyCalled := false
+	unhealthyCalled := make(chan bool, 1)
 	onUnhealthy := func(taskID string) {
-		unhealthyCalled = true
+		unhealthyCalled <- true
 	}
 
 	check := &types.HealthCheck{
@@ -105,69 +109,79 @@ func TestChecker_updateStatus(t *testing.T) {
 
 	checker := newCheckerWithClient("task-1", "container-1", check, types.RestartPolicyAlways, mockDocker, onUnhealthy)
 
-	t.Run("successful checks mark as healthy", func(t *testing.T) {
-		// First success - not enough
-		checker.updateStatus(types.ProbeResult{Success: true, Message: "ok"})
-		if checker.GetStatus() != types.HealthStatusUnknown {
-			t.Errorf("expected unknown after 1 success, got %s", checker.GetStatus())
-		}
-		if checker.consecutiveOK != 1 {
-			t.Errorf("expected consecutiveOK 1, got %d", checker.consecutiveOK)
-		}
+	t.Run(
+		"successful checks mark as healthy", func(t *testing.T) {
+			// First success - not enough
+			checker.updateStatus(types.ProbeResult{Success: true, Message: "ok"})
+			if checker.GetStatus() != types.HealthStatusUnknown {
+				t.Errorf("expected unknown after 1 success, got %s", checker.GetStatus())
+			}
+			if checker.consecutiveOK != 1 {
+				t.Errorf("expected consecutiveOK 1, got %d", checker.consecutiveOK)
+			}
 
-		// Second success - should become healthy
-		checker.updateStatus(types.ProbeResult{Success: true, Message: "ok"})
-		if checker.GetStatus() != types.HealthStatusHealthy {
-			t.Errorf("expected healthy after 2 successes, got %s", checker.GetStatus())
-		}
-		if checker.consecutiveOK != 2 {
-			t.Errorf("expected consecutiveOK 2, got %d", checker.consecutiveOK)
-		}
-	})
+			// Second success - should become healthy
+			checker.updateStatus(types.ProbeResult{Success: true, Message: "ok"})
+			if checker.GetStatus() != types.HealthStatusHealthy {
+				t.Errorf("expected healthy after 2 successes, got %s", checker.GetStatus())
+			}
+			if checker.consecutiveOK != 2 {
+				t.Errorf("expected consecutiveOK 2, got %d", checker.consecutiveOK)
+			}
+		},
+	)
 
-	t.Run("failed checks mark as unhealthy", func(t *testing.T) {
-		checker.status = types.HealthStatusHealthy
-		checker.consecutiveOK = 2
-		checker.consecutiveFail = 0
+	t.Run(
+		"failed checks mark as unhealthy", func(t *testing.T) {
+			checker.status = types.HealthStatusHealthy
+			checker.consecutiveOK = 2
+			checker.consecutiveFail = 0
 
-		// First failure - resets OK counter
-		checker.updateStatus(types.ProbeResult{Success: false, Message: "fail"})
-		if checker.GetStatus() != types.HealthStatusHealthy {
-			t.Errorf("expected still healthy after 1 failure, got %s", checker.GetStatus())
-		}
-		if checker.consecutiveOK != 0 {
-			t.Errorf("expected consecutiveOK reset to 0, got %d", checker.consecutiveOK)
-		}
-		if checker.consecutiveFail != 1 {
-			t.Errorf("expected consecutiveFail 1, got %d", checker.consecutiveFail)
-		}
+			// First failure - resets OK counter
+			checker.updateStatus(types.ProbeResult{Success: false, Message: "fail"})
+			if checker.GetStatus() != types.HealthStatusHealthy {
+				t.Errorf("expected still healthy after 1 failure, got %s", checker.GetStatus())
+			}
+			if checker.consecutiveOK != 0 {
+				t.Errorf("expected consecutiveOK reset to 0, got %d", checker.consecutiveOK)
+			}
+			if checker.consecutiveFail != 1 {
+				t.Errorf("expected consecutiveFail 1, got %d", checker.consecutiveFail)
+			}
 
-		// Second failure
-		checker.updateStatus(types.ProbeResult{Success: false, Message: "fail"})
-		if checker.consecutiveFail != 2 {
-			t.Errorf("expected consecutiveFail 2, got %d", checker.consecutiveFail)
-		}
+			// Second failure
+			checker.updateStatus(types.ProbeResult{Success: false, Message: "fail"})
+			if checker.consecutiveFail != 2 {
+				t.Errorf("expected consecutiveFail 2, got %d", checker.consecutiveFail)
+			}
 
-		// Third failure - should trigger unhealthy
-		checker.updateStatus(types.ProbeResult{Success: false, Message: "fail"})
-		if checker.GetStatus() != types.HealthStatusUnhealthy {
-			t.Errorf("expected unhealthy after 3 failures, got %s", checker.GetStatus())
-		}
-		if !unhealthyCalled {
-			t.Error("expected onUnhealthy callback to be called")
-		}
-	})
+			// Third failure - should trigger unhealthy
+			checker.updateStatus(types.ProbeResult{Success: false, Message: "fail"})
+			if checker.GetStatus() != types.HealthStatusUnhealthy {
+				t.Errorf("expected unhealthy after 3 failures, got %s", checker.GetStatus())
+			}
 
-	t.Run("success resets failure counter", func(t *testing.T) {
-		checker.consecutiveFail = 2
-		checker.consecutiveOK = 0
-		checker.status = types.HealthStatusHealthy
+			// Wait for callback (runs in goroutine)
+			select {
+			case <-unhealthyCalled:
+			case <-time.After(100 * time.Millisecond):
+				t.Error("expected onUnhealthy callback to be called")
+			}
+		},
+	)
 
-		checker.updateStatus(types.ProbeResult{Success: true, Message: "ok"})
-		if checker.consecutiveFail != 0 {
-			t.Errorf("expected consecutiveFail reset to 0, got %d", checker.consecutiveFail)
-		}
-	})
+	t.Run(
+		"success resets failure counter", func(t *testing.T) {
+			checker.consecutiveFail = 2
+			checker.consecutiveOK = 0
+			checker.status = types.HealthStatusHealthy
+
+			checker.updateStatus(types.ProbeResult{Success: true, Message: "ok"})
+			if checker.consecutiveFail != 0 {
+				t.Errorf("expected consecutiveFail reset to 0, got %d", checker.consecutiveFail)
+			}
+		},
+	)
 }
 
 func TestShouldRestart(t *testing.T) {
@@ -222,58 +236,64 @@ func TestShouldRestart(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := ShouldRestart(tt.policy, tt.exitCode)
-			if result != tt.shouldRestart {
-				t.Errorf("ShouldRestart(%s, %d) = %v, want %v", tt.policy, tt.exitCode, result, tt.shouldRestart)
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				result := ShouldRestart(tt.policy, tt.exitCode)
+				if result != tt.shouldRestart {
+					t.Errorf("ShouldRestart(%s, %d) = %v, want %v", tt.policy, tt.exitCode, result, tt.shouldRestart)
+				}
+			},
+		)
 	}
 }
 
 func TestChecker_Start(t *testing.T) {
-	t.Run("stops immediately when already stopped", func(t *testing.T) {
-		mockDocker := &mockDockerHealthClient{}
-		check := &types.HealthCheck{
-			Type:                types.ProbeTypeExec,
-			Command:             []string{"true"},
-			InitialDelaySeconds: 0,
-			PeriodSeconds:       1,
-		}
+	t.Run(
+		"stops immediately when already stopped", func(t *testing.T) {
+			mockDocker := &mockDockerHealthClient{}
+			check := &types.HealthCheck{
+				Type:                types.ProbeTypeExec,
+				Command:             []string{"true"},
+				InitialDelaySeconds: 0,
+				PeriodSeconds:       1,
+			}
 
-		checker := newCheckerWithClient("task-1", "container-1", check, types.RestartPolicyNever, mockDocker, nil)
-		checker.stopped = true
+			checker := newCheckerWithClient("task-1", "container-1", check, types.RestartPolicyNever, mockDocker, nil)
+			checker.stopped = true
 
-		ctx := context.Background()
-		checker.Start(ctx) // Should return immediately
-	})
+			ctx := context.Background()
+			checker.Start(ctx)
+		},
+	)
 
-	t.Run("respects initial delay", func(t *testing.T) {
-		mockDocker := &mockDockerHealthClient{
-			ExecFunc: func(ctx context.Context, containerID string, cmd []string) (int, string, error) {
-				return 0, "", nil
-			},
-		}
+	t.Run(
+		"respects initial delay", func(t *testing.T) {
+			mockDocker := &mockDockerHealthClient{
+				ExecFunc: func(ctx context.Context, containerID string, cmd []string) (int, string, error) {
+					return 0, "", nil
+				},
+			}
 
-		check := &types.HealthCheck{
-			Type:                types.ProbeTypeExec,
-			Command:             []string{"true"},
-			InitialDelaySeconds: 1,
-			PeriodSeconds:       10,
-		}
+			check := &types.HealthCheck{
+				Type:                types.ProbeTypeExec,
+				Command:             []string{"true"},
+				InitialDelaySeconds: 1,
+				PeriodSeconds:       10,
+			}
 
-		checker := newCheckerWithClient("task-1", "container-1", check, types.RestartPolicyNever, mockDocker, nil)
+			checker := newCheckerWithClient("task-1", "container-1", check, types.RestartPolicyNever, mockDocker, nil)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		defer cancel()
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
 
-		start := time.Now()
-		checker.Start(ctx)
-		elapsed := time.Since(start)
+			start := time.Now()
+			checker.Start(ctx)
+			elapsed := time.Since(start)
 
-		// Should wait at least the initial delay or until context cancels
-		if elapsed < 100*time.Millisecond {
-			t.Errorf("Start returned too quickly: %v", elapsed)
-		}
-	})
+			// Should wait at least the initial delay or until context cancels
+			if elapsed < 100*time.Millisecond {
+				t.Errorf("Start returned too quickly: %v", elapsed)
+			}
+		},
+	)
 }
