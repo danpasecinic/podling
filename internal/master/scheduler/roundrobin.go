@@ -59,8 +59,8 @@ func (rr *RoundRobin) SelectNodeForPod(pod types.Pod, nodes []types.Node) (*type
 	return &availableNodes[rr.lastUsed], nil
 }
 
-// filterAvailableForTask filters nodes to those that are online, have task capacity,
-// and have sufficient resources for the task (if resource requirements are specified)
+// filterAvailableForTask filters nodes to those that are online and have sufficient
+// resources for the task. Resource checking is always performed.
 func filterAvailableForTask(task types.Task, nodes []types.Node) []types.Node {
 	available := make([]types.Node, 0)
 	for _, node := range nodes {
@@ -68,11 +68,16 @@ func filterAvailableForTask(task types.Task, nodes []types.Node) []types.Node {
 			continue
 		}
 
-		if node.RunningTasks >= node.Capacity {
+		if node.Resources == nil {
 			continue
 		}
 
-		if node.Resources != nil && !task.Resources.Requests.IsZero() {
+		maxSlots := node.GetMaxTaskSlots()
+		if node.RunningTasks >= maxSlots {
+			continue
+		}
+
+		if !task.Resources.Requests.IsZero() {
 			if !node.Resources.CanFit(task.Resources) {
 				continue
 			}
@@ -83,8 +88,8 @@ func filterAvailableForTask(task types.Task, nodes []types.Node) []types.Node {
 	return available
 }
 
-// filterAvailableForPod filters nodes to those that are online, have task capacity,
-// and have sufficient resources for the pod's total resource requirements
+// filterAvailableForPod filters nodes to those that are online and have sufficient
+// resources for the pod's total resource requirements
 func filterAvailableForPod(pod types.Pod, nodes []types.Node) []types.Node {
 	available := make([]types.Node, 0)
 	totalResources := pod.GetTotalResourceRequests()
@@ -94,11 +99,16 @@ func filterAvailableForPod(pod types.Pod, nodes []types.Node) []types.Node {
 			continue
 		}
 
-		if node.RunningTasks >= node.Capacity {
+		if node.Resources == nil {
 			continue
 		}
 
-		if node.Resources != nil && !totalResources.Requests.IsZero() {
+		maxSlots := node.GetMaxTaskSlots()
+		if node.RunningTasks >= maxSlots {
+			continue
+		}
+
+		if !totalResources.Requests.IsZero() {
 			if !node.Resources.CanFit(totalResources) {
 				continue
 			}
