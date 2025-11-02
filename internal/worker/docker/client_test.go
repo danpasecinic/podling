@@ -129,6 +129,90 @@ func TestCreateContainer(t *testing.T) {
 	}
 }
 
+func TestCreateContainerWithResources(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	// Pull alpine first
+	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
+		t.Fatalf("failed to pull alpine image: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		imageName   string
+		env         []string
+		cpuQuota    float64
+		memoryLimit int64
+		wantErr     bool
+	}{
+		{
+			name:        "create with CPU and memory limits",
+			imageName:   "alpine:latest",
+			env:         []string{"TEST=value"},
+			cpuQuota:    1.0,
+			memoryLimit: 256 * 1024 * 1024, // 256MB
+			wantErr:     false,
+		},
+		{
+			name:        "create with only CPU limit",
+			imageName:   "alpine:latest",
+			env:         []string{},
+			cpuQuota:    0.5,
+			memoryLimit: 0,
+			wantErr:     false,
+		},
+		{
+			name:        "create with only memory limit",
+			imageName:   "alpine:latest",
+			env:         []string{},
+			cpuQuota:    0,
+			memoryLimit: 512 * 1024 * 1024, // 512MB
+			wantErr:     false,
+		},
+		{
+			name:        "create with no limits",
+			imageName:   "alpine:latest",
+			env:         []string{},
+			cpuQuota:    0,
+			memoryLimit: 0,
+			wantErr:     false,
+		},
+		{
+			name:        "create with invalid image",
+			imageName:   "nonexistent-image:latest",
+			env:         []string{},
+			cpuQuota:    1.0,
+			memoryLimit: 256 * 1024 * 1024,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				containerID, err := client.CreateContainerWithResources(
+					ctx, tt.imageName, tt.env, tt.cpuQuota, tt.memoryLimit,
+				)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("CreateContainerWithResources() error = %v, wantErr %v", err, tt.wantErr)
+				}
+				if !tt.wantErr && containerID == "" {
+					t.Error("CreateContainerWithResources() returned empty container ID")
+				}
+				if containerID != "" {
+					_ = client.RemoveContainer(ctx, containerID)
+				}
+			},
+		)
+	}
+}
+
 func TestStartContainer(t *testing.T) {
 	client, err := NewClient()
 	if err != nil {
