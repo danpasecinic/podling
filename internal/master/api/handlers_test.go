@@ -275,12 +275,11 @@ func TestRegisterNode(t *testing.T) {
 	}{
 		{
 			name:       "valid node registration",
-			reqBody:    `{"hostname":"worker1","port":8081,"capacity":10}`,
+			reqBody:    `{"hostname":"worker1","port":8081,"cpu":"10","memory":"10Gi"}`,
 			wantStatus: http.StatusCreated,
 			wantFields: map[string]interface{}{
 				"hostname": "worker1",
 				"port":     float64(8081),
-				"capacity": float64(10),
 				"status":   string(types.NodeOnline),
 			},
 		},
@@ -292,6 +291,16 @@ func TestRegisterNode(t *testing.T) {
 		{
 			name:       "missing required fields",
 			reqBody:    `{"hostname":"worker1"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid CPU format",
+			reqBody:    `{"hostname":"worker1","port":8081,"cpu":"invalid","memory":"10Gi"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid memory format",
+			reqBody:    `{"hostname":"worker1","port":8081,"cpu":"10","memory":"invalid"}`,
 			wantStatus: http.StatusBadRequest,
 		},
 	}
@@ -416,7 +425,11 @@ func TestTaskScheduling(t *testing.T) {
 		NodeID:   "node1",
 		Hostname: "worker1",
 		Status:   types.NodeOnline,
-		Capacity: 10,
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 	_ = server.store.AddNode(node)
 

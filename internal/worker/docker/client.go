@@ -65,6 +65,36 @@ func (c *Client) CreateContainer(ctx context.Context, imageName string, env []st
 	return resp.ID, nil
 }
 
+// CreateContainerWithResources creates a new container with resource limits.
+// cpuQuota is in Docker format (e.g., 0.5 for half a core, 2.0 for two cores).
+// memoryLimit is in bytes (0 means no limit).
+func (c *Client) CreateContainerWithResources(
+	ctx context.Context, imageName string, env []string, cpuQuota float64, memoryLimit int64,
+) (string, error) {
+	config := &container.Config{
+		Image: imageName,
+		Env:   env,
+	}
+
+	hostConfig := &container.HostConfig{}
+
+	if cpuQuota > 0 {
+		// Docker uses NanoCPUs (1 CPU = 1e9 nano CPUs)
+		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)
+	}
+
+	if memoryLimit > 0 {
+		hostConfig.Memory = memoryLimit
+	}
+
+	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w", err)
+	}
+
+	return resp.ID, nil
+}
+
 // StartContainer starts a container by ID.
 func (c *Client) StartContainer(ctx context.Context, containerID string) error {
 	err := c.cli.ContainerStart(ctx, containerID, container.StartOptions{})

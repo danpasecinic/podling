@@ -80,7 +80,19 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 		}
 
 		log.Printf("creating container %s from image %s", container.Name, container.Image)
-		containerID, err := a.dockerClient.CreateContainer(podCtx, container.Image, env)
+
+		var containerID string
+		var err error
+		if !container.Resources.Limits.IsZero() {
+			cpuLimit := container.Resources.Limits.GetCPULimitForDocker()
+			memoryLimit := container.Resources.Limits.GetMemoryLimitForDocker()
+			containerID, err = a.dockerClient.CreateContainerWithResources(
+				podCtx, container.Image, env, cpuLimit, memoryLimit,
+			)
+		} else {
+			containerID, err = a.dockerClient.CreateContainer(podCtx, container.Image, env)
+		}
+
 		if err != nil {
 			errMsg := fmt.Sprintf("failed to create container %s: %v", container.Name, err)
 			a.cleanupPodContainers(context.Background(), execution)

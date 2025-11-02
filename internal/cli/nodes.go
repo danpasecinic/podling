@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/danpasecinic/podling/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -27,19 +28,27 @@ var nodesCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		_, _ = fmt.Fprint(w, "ID\tHOSTNAME\tPORT\tSTATUS\tCAPACITY\tTASKS\tLAST HEARTBEAT\n")
+		_, _ = fmt.Fprint(w, "ID\tHOSTNAME\tPORT\tSTATUS\tCPU\tMEMORY\tTASKS\tLAST HEARTBEAT\n")
 
 		for _, node := range nodes {
 			lastHeartbeat := time.Since(node.LastHeartbeat)
 			heartbeatStr := formatDuration(lastHeartbeat)
 
+			cpuStr := "N/A"
+			memoryStr := "N/A"
+			if node.Resources != nil {
+				cpuStr = types.FormatCPU(node.Resources.Capacity.CPU)
+				memoryStr = types.FormatMemory(node.Resources.Capacity.Memory)
+			}
+
 			_, _ = fmt.Fprintf(
-				w, "%s\t%s\t%d\t%s\t%d\t%d\t%s ago\n",
+				w, "%s\t%s\t%d\t%s\t%s\t%s\t%d\t%s ago\n",
 				node.NodeID,
 				node.Hostname,
 				node.Port,
 				node.Status,
-				node.Capacity,
+				cpuStr,
+				memoryStr,
 				node.RunningTasks,
 				heartbeatStr,
 			)

@@ -247,12 +247,22 @@ func TestClient_ListNodes(t *testing.T) {
 			statusCode: http.StatusOK,
 			response: []types.Node{
 				{
-					NodeID: "worker-1", Hostname: "localhost", Port: 8081, Status: types.NodeOnline, Capacity: 10,
+					NodeID: "worker-1", Hostname: "localhost", Port: 8081, Status: types.NodeOnline,
 					LastHeartbeat: time.Now(),
+					Resources: &types.NodeResources{
+						Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+						Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+						Used:        types.ResourceList{CPU: 0, Memory: 0},
+					},
 				},
 				{
-					NodeID: "worker-2", Hostname: "localhost", Port: 8082, Status: types.NodeOnline, Capacity: 10,
+					NodeID: "worker-2", Hostname: "localhost", Port: 8082, Status: types.NodeOnline,
 					LastHeartbeat: time.Now(),
+					Resources: &types.NodeResources{
+						Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+						Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+						Used:        types.ResourceList{CPU: 0, Memory: 0},
+					},
 				},
 			},
 			wantErr:   false,

@@ -26,9 +26,13 @@ func TestCreatePod(t *testing.T) {
 		Hostname:      "localhost",
 		Port:          8081,
 		Status:        types.NodeOnline,
-		Capacity:      10,
 		RunningTasks:  0,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity:    types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Allocatable: types.ResourceList{CPU: 10000, Memory: 10 * 1024 * 1024 * 1024},
+			Used:        types.ResourceList{CPU: 0, Memory: 0},
+		},
 	}
 	_ = store.AddNode(node)
 

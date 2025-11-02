@@ -92,6 +92,9 @@ type Container struct {
 	// WorkingDir is the working directory for the container
 	WorkingDir string `json:"workingDir,omitempty"`
 
+	// Resources specifies the compute resources required by this container
+	Resources ResourceRequirements `json:"resources,omitempty"`
+
 	// ---- Runtime fields (populated by worker) ----
 
 	// ContainerID is the Docker container ID (set by worker)
@@ -179,4 +182,22 @@ func (p *Pod) GetContainerByName(name string) *Container {
 		}
 	}
 	return nil
+}
+
+// GetTotalResourceRequests returns the sum of all container resource requests
+// This is used for scheduling - the pod needs at least this much resources
+func (p *Pod) GetTotalResourceRequests() ResourceRequirements {
+	var totalCPU, totalMemory int64
+
+	for _, container := range p.Containers {
+		totalCPU += container.Resources.Requests.CPU
+		totalMemory += container.Resources.Requests.Memory
+	}
+
+	return ResourceRequirements{
+		Requests: ResourceList{
+			CPU:    totalCPU,
+			Memory: totalMemory,
+		},
+	}
 }

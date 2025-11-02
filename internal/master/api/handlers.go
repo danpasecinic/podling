@@ -2,6 +2,7 @@ package api
 
 import (
 	cryptoRand "crypto/rand"
+	"fmt"
 	"math/big"
 	"net/http"
 	"time"
@@ -33,7 +34,8 @@ type UpdateTaskStatusRequest struct {
 type RegisterNodeRequest struct {
 	Hostname string `json:"hostname" validate:"required"`
 	Port     int    `json:"port" validate:"required"`
-	Capacity int    `json:"capacity" validate:"required"`
+	CPU      string `json:"cpu" validate:"required"`    // e.g., "2", "500m", "2.5"
+	Memory   string `json:"memory" validate:"required"` // e.g., "1Gi", "512Mi", "1073741824"
 }
 
 // CreateTask handles POST /api/v1/tasks.
@@ -153,8 +155,18 @@ func (s *Server) RegisterNode(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
 	}
 
-	if req.Hostname == "" || req.Port == 0 || req.Capacity == 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "hostname, port, and capacity are required"})
+	if req.Hostname == "" || req.Port == 0 || req.CPU == "" || req.Memory == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "hostname, port, cpu, and memory are required"})
+	}
+
+	cpuMillicores, err := types.ParseCPU(req.CPU)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid cpu format: %v", err)})
+	}
+
+	memoryBytes, err := types.ParseMemory(req.Memory)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid memory format: %v", err)})
 	}
 
 	node := types.Node{
@@ -162,9 +174,22 @@ func (s *Server) RegisterNode(c echo.Context) error {
 		Hostname:      req.Hostname,
 		Port:          req.Port,
 		Status:        types.NodeOnline,
-		Capacity:      req.Capacity,
 		RunningTasks:  0,
 		LastHeartbeat: time.Now(),
+		Resources: &types.NodeResources{
+			Capacity: types.ResourceList{
+				CPU:    cpuMillicores,
+				Memory: memoryBytes,
+			},
+			Allocatable: types.ResourceList{
+				CPU:    cpuMillicores,
+				Memory: memoryBytes,
+			},
+			Used: types.ResourceList{
+				CPU:    0,
+				Memory: 0,
+			},
+		},
 	}
 
 	if err := s.store.AddNode(node); err != nil {

@@ -75,6 +75,35 @@
           "response": []
         },
         {
+          "name": "Create Task with Resource Limits",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"nginx-task-with-limits\",\n  \"image\": \"nginx:alpine\",\n  \"env\": {\n    \"PORT\": \"8080\"\n  },\n  \"resources\": {\n    \"requests\": {\n      \"cpu\": 500,\n      \"memory\": 268435456\n    },\n    \"limits\": {\n      \"cpu\": 1000,\n      \"memory\": 536870912\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{master_url}}/api/v1/tasks",
+              "host": [
+                "{{master_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ]
+            },
+            "description": "Create a task with CPU and memory resource limits. CPU in millicores (500m = 0.5 cores, 1000m = 1 core), Memory in bytes (268435456 = 256Mi, 536870912 = 512Mi)"
+          },
+          "response": []
+        },
+        {
           "name": "List Tasks",
           "request": {
             "method": "GET",
@@ -319,7 +348,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"hostname\": \"localhost\",\n  \"port\": 8081,\n  \"capacity\": 10\n}"
+              "raw": "{\n  \"hostname\": \"localhost\",\n  \"port\": 8081,\n  \"cpu\": \"10\",\n  \"memory\": \"10Gi\"\n}"
             },
             "url": {
               "raw": "{{master_url}}/api/v1/nodes/register",
@@ -333,7 +362,7 @@
                 "register"
               ]
             },
-            "description": "Register a worker node with the master"
+            "description": "Register a worker node with the master. CPU accepts formats like '10', '2.5', '500m' (millicores). Memory accepts formats like '10Gi', '512Mi', '1G'"
           },
           "response": []
         },
