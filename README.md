@@ -10,8 +10,10 @@ controller with REST API, worker agents that manage containers via Docker, and a
 ## Features
 
 - **Master-Worker Architecture**: Distributed container management
+- **Multi-Container Pods**: Kubernetes-style pods with shared lifecycle
 - **REST API**: Echo-based HTTP server for control plane
 - **Persistent Storage**: PostgreSQL or in-memory state store
+- **Health Checks**: Liveness and readiness probes (HTTP, TCP, Exec)
 - **Hot Reloading**: Air integration for rapid development
 - **Production Patterns**: Following golang-standards/project-layout
 
@@ -99,14 +101,17 @@ podling/
 ├── internal/               # Private application code
 │   ├── types/             # Core data models
 │   │   ├── task.go        # Task model and status
+│   │   ├── pod.go         # Pod and Container models
 │   │   └── node.go        # Node model and status
 │   ├── master/            # Master controller internals
 │   │   ├── api/           # HTTP API handlers (Echo)
-│   │   ├── scheduler/     # Task scheduling logic
+│   │   ├── scheduler/     # Task and pod scheduling logic
 │   │   └── state/         # State management
+│   │       └── migrations/ # Database migrations
 │   └── worker/            # Worker agent internals
-│       ├── agent/         # Worker agent logic
-│       └── docker/        # Docker SDK integration
+│       ├── agent/         # Worker agent and pod executor
+│       ├── docker/        # Docker SDK integration
+│       └── health/        # Health check implementations
 ├── docs/                  # Documentation
 │   ├── postman/           # Postman collection for API testing
 │   ├── POSTMAN_GUIDE.md   # API testing guide
@@ -338,6 +343,80 @@ pending → scheduled → running → completed/failed
 - **completed**: Task finished successfully
 - **failed**: Task execution failed
 
+### Pod API Endpoints
+
+Podling supports Kubernetes-style pods - groups of one or more containers with shared lifecycle:
+
+**Create Pod** - Create a multi-container pod
+
+```bash
+POST /api/v1/pods
+Content-Type: application/json
+
+{
+  "name": "my-web-app",
+  "namespace": "production",
+  "labels": {
+    "app": "web",
+    "version": "1.0"
+  },
+  "containers": [
+    {
+      "name": "app",
+      "image": "myapp:1.0",
+      "env": {"PORT": "8080"}
+    },
+    {
+      "name": "sidecar",
+      "image": "nginx:latest"
+    }
+  ]
+}
+
+# Example
+curl -X POST http://localhost:8080/api/v1/pods \
+  -H "Content-Type: application/json" \
+  -d '{"name":"web-pod","containers":[{"name":"nginx","image":"nginx:latest"}]}'
+```
+
+**List Pods** - Get all pods
+
+```bash
+GET /api/v1/pods
+
+curl http://localhost:8080/api/v1/pods
+```
+
+**Get Pod** - Get specific pod with container status
+
+```bash
+GET /api/v1/pods/{podId}
+
+curl http://localhost:8080/api/v1/pods/20250119123456-pod123
+```
+
+**Delete Pod** - Delete a pod
+
+```bash
+DELETE /api/v1/pods/{podId}
+
+curl -X DELETE http://localhost:8080/api/v1/pods/20250119123456-pod123
+```
+
+### Pod Status Flow
+
+Pods progress through similar states:
+
+```
+pending → scheduled → running → succeeded/failed
+```
+
+- **pending**: Pod created, awaiting scheduling
+- **scheduled**: Pod assigned to a worker node
+- **running**: All containers in pod are running
+- **succeeded**: All containers exited with code 0
+- **failed**: One or more containers failed
+
 ## CLI Usage
 
 The `podling` CLI provides a user-friendly interface to interact with the Podling orchestrator.
@@ -363,9 +442,9 @@ The CLI can be configured via:
 
 ### Commands
 
-#### Run a Task
+#### Task Commands (Single Container)
 
-Submit a new task to run a container:
+Submit a new task to run a single container:
 
 ```bash
 # Basic usage
@@ -378,9 +457,7 @@ podling run my-redis --image redis:latest --env PORT=6379 --env MODE=standalone
 podling --master http://production:8080 run my-task --image alpine:latest
 ```
 
-#### List Tasks
-
-View all tasks or get details of a specific task:
+View tasks:
 
 ```bash
 # List all tasks
@@ -391,15 +468,54 @@ podling ps --task <task-id>
 podling ps -t <task-id>
 ```
 
-Output example:
+View task logs:
+
+```bash
+# Get logs (last 100 lines by default)
+podling logs <task-id>
+
+# Limit output
+podling logs <task-id> --tail 50
+```
+
+#### Pod Commands (Multi-Container)
+
+Create and manage multi-container pods:
+
+```bash
+# Create a pod with a single container
+podling pod create my-web --container nginx:nginx:latest
+
+# Create a pod with multiple containers
+podling pod create my-app \
+  --container app:myapp:1.0:PORT=8080,ENV=prod \
+  --container sidecar:nginx:latest \
+  --namespace production \
+  --label app=myapp \
+  --label version=1.0
+
+# List all pods
+podling pod list
+
+# Get detailed pod information (shows all container statuses)
+podling pod get <pod-id>
+
+# Delete a pod
+podling pod delete <pod-id>
+```
+
+**Container Specification Format:**
 
 ```
-ID                      NAME       IMAGE          STATUS     NODE        CREATED
-20250119123456-abc123   my-nginx   nginx:latest   running    worker-1    2m
-20250119123457-def456   my-redis   redis:latest   completed  worker-2    5m
+name:image[:env1=val1,env2=val2]
 ```
 
-#### List Worker Nodes
+Examples:
+
+- `nginx:nginx:latest` - Simple container
+- `app:myapp:1.0:PORT=8080,DB=postgres` - With environment variables
+
+#### Node Commands
 
 View all registered worker nodes:
 
@@ -417,18 +533,6 @@ Output example:
 ID          HOSTNAME    PORT   STATUS   CAPACITY   TASKS   LAST HEARTBEAT
 worker-1    localhost   8081   online   10         2       30s ago
 worker-2    localhost   8082   online   10         1       25s ago
-```
-
-#### View Task Logs
-
-Fetch container logs for a running task:
-
-```bash
-# Get logs (last 100 lines by default)
-podling logs <task-id>
-
-# Limit output
-podling logs <task-id> --tail 50
 ```
 
 ### Global Flags

@@ -12,7 +12,6 @@ graph TB
         API[REST API<br/>Echo Framework]
         Scheduler[Scheduler<br/>Task Assignment]
         State[State Manager<br/>Thread-Safe Store]
-        
         API --> Scheduler
         API --> State
         Scheduler --> State
@@ -22,11 +21,9 @@ graph TB
         W1[Worker Agent :8081<br/>Node Registration<br/>Heartbeats]
         W2[Worker Agent :8082<br/>Node Registration<br/>Heartbeats]
         W3[Worker Agent :8083<br/>Node Registration<br/>Heartbeats]
-        
         D1[Docker Engine<br/>Container Runtime]
         D2[Docker Engine<br/>Container Runtime]
         D3[Docker Engine<br/>Container Runtime]
-        
         W1 --> D1
         W2 --> D2
         W3 --> D3
@@ -39,14 +36,13 @@ graph TB
     W1 -.->|Heartbeat| State
     W2 -.->|Heartbeat| State
     W3 -.->|Heartbeat| State
-    
-    style CLI fill:#e1f5ff
-    style API fill:#ffe1e1
-    style Scheduler fill:#ffe1e1
-    style State fill:#ffe1e1
-    style W1 fill:#e1ffe1
-    style W2 fill:#e1ffe1
-    style W3 fill:#e1ffe1
+    style CLI fill: #e1f5ff
+    style API fill: #ffe1e1
+    style Scheduler fill: #ffe1e1
+    style State fill: #ffe1e1
+    style W1 fill: #e1ffe1
+    style W2 fill: #e1ffe1
+    style W3 fill: #e1ffe1
 ```
 
 ## Task Lifecycle Flow
@@ -260,6 +256,39 @@ classDiagram
         +string Error
     }
 
+    class Pod {
+        +string PodID
+        +string Name
+        +string Namespace
+        +map~string,string~ Labels
+        +Container[] Containers
+        +string Status
+        +string NodeID
+        +RestartPolicy RestartPolicy
+        +time.Time CreatedAt
+        +time.Time ScheduledAt
+        +time.Time StartedAt
+        +time.Time FinishedAt
+        +string Message
+        +string Reason
+    }
+
+    class Container {
+        +string Name
+        +string Image
+        +string[] Command
+        +string[] Args
+        +map~string,string~ Env
+        +ContainerPort[] Ports
+        +HealthCheck LivenessProbe
+        +HealthCheck ReadinessProbe
+        +string ContainerID
+        +string Status
+        +string HealthStatus
+        +int ExitCode
+        +string Error
+    }
+
     class Node {
         +string NodeID
         +string Hostname
@@ -279,6 +308,22 @@ classDiagram
         Failed
     }
 
+    class PodStatus {
+        <<enumeration>>
+        Pending
+        Scheduled
+        Running
+        Succeeded
+        Failed
+    }
+
+    class ContainerStatus {
+        <<enumeration>>
+        Waiting
+        Running
+        Terminated
+    }
+
     class NodeStatus {
         <<enumeration>>
         Online
@@ -286,6 +331,9 @@ classDiagram
     }
 
     Task --> TaskStatus
+    Pod --> PodStatus
+    Pod --> Container
+    Container --> ContainerStatus
     Node --> NodeStatus
 ```
 
