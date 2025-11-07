@@ -825,3 +825,399 @@ func TestClient_CreateTask_FullCoverage(t *testing.T) {
 		},
 	)
 }
+
+func TestClient_CreateService(t *testing.T) {
+	tests := []struct {
+		name        string
+		serviceName string
+		namespace   string
+		selector    map[string]string
+		ports       []types.ServicePort
+		labels      map[string]string
+		serviceType string
+		sessionAff  string
+		statusCode  int
+		wantErr     bool
+	}{
+		{
+			name:        "successful service creation",
+			serviceName: "web-service",
+			namespace:   "default",
+			selector:    map[string]string{"app": "nginx"},
+			ports: []types.ServicePort{
+				{Port: 80, TargetPort: 8080, Protocol: "TCP"},
+			},
+			labels:      map[string]string{"tier": "frontend"},
+			serviceType: "ClusterIP",
+			sessionAff:  "",
+			statusCode:  http.StatusOK,
+			wantErr:     false,
+		},
+		{
+			name:        "server error",
+			serviceName: "web-service",
+			namespace:   "default",
+			selector:    map[string]string{"app": "nginx"},
+			ports: []types.ServicePort{
+				{Port: 80, TargetPort: 8080, Protocol: "TCP"},
+			},
+			labels:      nil,
+			serviceType: "ClusterIP",
+			sessionAff:  "",
+			statusCode:  http.StatusInternalServerError,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							if r.URL.Path != "/api/v1/services" {
+								t.Errorf("unexpected path: %s", r.URL.Path)
+							}
+							if r.Method != http.MethodPost {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							w.WriteHeader(tt.statusCode)
+							if tt.statusCode == http.StatusOK {
+								response := types.Service{
+									ServiceID:       "svc-123",
+									Name:            tt.serviceName,
+									Namespace:       tt.namespace,
+									Type:            types.ServiceType(tt.serviceType),
+									ClusterIP:       "10.96.0.1",
+									Selector:        tt.selector,
+									Ports:           tt.ports,
+									Labels:          tt.labels,
+									SessionAffinity: tt.sessionAff,
+									CreatedAt:       time.Now(),
+									UpdatedAt:       time.Now(),
+								}
+								_ = json.NewEncoder(w).Encode(response)
+							} else {
+								_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
+							}
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				service, err := client.CreateService(
+					tt.serviceName, tt.namespace, tt.selector, tt.ports, tt.labels, tt.serviceType, tt.sessionAff,
+				)
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("CreateService() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				if !tt.wantErr && service == nil {
+					t.Error("CreateService() returned nil service")
+				}
+
+				if !tt.wantErr && service != nil {
+					if service.Name != tt.serviceName {
+						t.Errorf("service name = %v, want %v", service.Name, tt.serviceName)
+					}
+				}
+			},
+		)
+	}
+}
+
+func TestClient_ListServices(t *testing.T) {
+	tests := []struct {
+		name       string
+		namespace  string
+		statusCode int
+		response   interface{}
+		wantErr    bool
+		wantCount  int
+	}{
+		{
+			name:       "successful list",
+			namespace:  "",
+			statusCode: http.StatusOK,
+			response: []types.Service{
+				{
+					ServiceID: "svc-1",
+					Name:      "web-service",
+					Namespace: "default",
+					Type:      types.ServiceTypeClusterIP,
+					ClusterIP: "10.96.0.1",
+					CreatedAt: time.Now(),
+				},
+				{
+					ServiceID: "svc-2",
+					Name:      "api-service",
+					Namespace: "default",
+					Type:      types.ServiceTypeClusterIP,
+					ClusterIP: "10.96.0.2",
+					CreatedAt: time.Now(),
+				},
+			},
+			wantErr:   false,
+			wantCount: 2,
+		},
+		{
+			name:       "empty list",
+			namespace:  "production",
+			statusCode: http.StatusOK,
+			response:   []types.Service{},
+			wantErr:    false,
+			wantCount:  0,
+		},
+		{
+			name:       "server error",
+			namespace:  "",
+			statusCode: http.StatusInternalServerError,
+			response:   map[string]string{"error": "internal server error"},
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							if r.URL.Path != "/api/v1/services" {
+								t.Errorf("unexpected path: %s", r.URL.Path)
+							}
+							if r.Method != http.MethodGet {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							if tt.namespace != "" {
+								namespace := r.URL.Query().Get("namespace")
+								if namespace != tt.namespace {
+									t.Errorf("expected namespace query param %s, got %s", tt.namespace, namespace)
+								}
+							}
+
+							w.WriteHeader(tt.statusCode)
+							_ = json.NewEncoder(w).Encode(tt.response)
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				services, err := client.ListServices(tt.namespace)
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("ListServices() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				if !tt.wantErr && len(services) != tt.wantCount {
+					t.Errorf("ListServices() count = %v, want %v", len(services), tt.wantCount)
+				}
+			},
+		)
+	}
+}
+
+func TestClient_GetService(t *testing.T) {
+	tests := []struct {
+		name       string
+		serviceID  string
+		statusCode int
+		response   interface{}
+		wantErr    bool
+	}{
+		{
+			name:       "successful get",
+			serviceID:  "svc-123",
+			statusCode: http.StatusOK,
+			response: types.Service{
+				ServiceID: "svc-123",
+				Name:      "web-service",
+				Namespace: "default",
+				Type:      types.ServiceTypeClusterIP,
+				ClusterIP: "10.96.0.1",
+				CreatedAt: time.Now(),
+			},
+			wantErr: false,
+		},
+		{
+			name:       "service not found",
+			serviceID:  "nonexistent",
+			statusCode: http.StatusNotFound,
+			response:   map[string]string{"error": "service not found"},
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							expectedPath := "/api/v1/services/" + tt.serviceID
+							if r.URL.Path != expectedPath {
+								t.Errorf("unexpected path: %s, want %s", r.URL.Path, expectedPath)
+							}
+							if r.Method != http.MethodGet {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							w.WriteHeader(tt.statusCode)
+							_ = json.NewEncoder(w).Encode(tt.response)
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				service, err := client.GetService(tt.serviceID)
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("GetService() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				if !tt.wantErr && service.ServiceID != tt.serviceID {
+					t.Errorf("service ID = %v, want %v", service.ServiceID, tt.serviceID)
+				}
+			},
+		)
+	}
+}
+
+func TestClient_GetEndpoints(t *testing.T) {
+	tests := []struct {
+		name       string
+		serviceID  string
+		statusCode int
+		response   interface{}
+		wantErr    bool
+	}{
+		{
+			name:       "successful get endpoints",
+			serviceID:  "svc-123",
+			statusCode: http.StatusOK,
+			response: types.Endpoints{
+				ServiceID:   "svc-123",
+				ServiceName: "web-service",
+				Namespace:   "default",
+				Subsets: []types.EndpointSubset{
+					{
+						Addresses: []types.EndpointAddress{
+							{IP: "172.17.0.2", PodID: "pod-1", NodeID: "node-1"},
+						},
+						Ports: []types.EndpointPort{
+							{Port: 8080, Protocol: "TCP"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:       "endpoints not found",
+			serviceID:  "nonexistent",
+			statusCode: http.StatusNotFound,
+			response:   map[string]string{"error": "endpoints not found"},
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							expectedPath := "/api/v1/services/" + tt.serviceID + "/endpoints"
+							if r.URL.Path != expectedPath {
+								t.Errorf("unexpected path: %s, want %s", r.URL.Path, expectedPath)
+							}
+							if r.Method != http.MethodGet {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							w.WriteHeader(tt.statusCode)
+							_ = json.NewEncoder(w).Encode(tt.response)
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				endpoints, err := client.GetEndpoints(tt.serviceID)
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("GetEndpoints() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				if !tt.wantErr && endpoints.ServiceID != tt.serviceID {
+					t.Errorf("endpoints service ID = %v, want %v", endpoints.ServiceID, tt.serviceID)
+				}
+			},
+		)
+	}
+}
+
+func TestClient_DeleteService(t *testing.T) {
+	tests := []struct {
+		name       string
+		serviceID  string
+		statusCode int
+		wantErr    bool
+	}{
+		{
+			name:       "successful delete",
+			serviceID:  "svc-123",
+			statusCode: http.StatusOK,
+			wantErr:    false,
+		},
+		{
+			name:       "service not found",
+			serviceID:  "nonexistent",
+			statusCode: http.StatusNotFound,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							expectedPath := "/api/v1/services/" + tt.serviceID
+							if r.URL.Path != expectedPath {
+								t.Errorf("unexpected path: %s, want %s", r.URL.Path, expectedPath)
+							}
+							if r.Method != http.MethodDelete {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							w.WriteHeader(tt.statusCode)
+							if tt.statusCode != http.StatusOK {
+								_ = json.NewEncoder(w).Encode(map[string]string{"error": "service not found"})
+							}
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				err := client.DeleteService(tt.serviceID)
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("DeleteService() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			},
+		)
+	}
+}
