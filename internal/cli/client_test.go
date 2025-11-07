@@ -1221,3 +1221,295 @@ func TestClient_DeleteService(t *testing.T) {
 		)
 	}
 }
+
+func TestClient_CreatePod(t *testing.T) {
+	tests := []struct {
+		name       string
+		podName    string
+		namespace  string
+		containers []types.Container
+		labels     map[string]string
+		statusCode int
+		wantErr    bool
+	}{
+		{
+			name:      "successful pod creation",
+			podName:   "test-pod",
+			namespace: "default",
+			containers: []types.Container{
+				{Name: "nginx", Image: "nginx:latest"},
+			},
+			labels:     map[string]string{"app": "web"},
+			statusCode: http.StatusOK,
+			wantErr:    false,
+		},
+		{
+			name:      "server error",
+			podName:   "test-pod",
+			namespace: "default",
+			containers: []types.Container{
+				{Name: "nginx", Image: "nginx:latest"},
+			},
+			labels:     nil,
+			statusCode: http.StatusInternalServerError,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							if r.URL.Path != "/api/v1/pods" {
+								t.Errorf("unexpected path: %s", r.URL.Path)
+							}
+							if r.Method != http.MethodPost {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							w.WriteHeader(tt.statusCode)
+							if tt.statusCode == http.StatusOK {
+								response := types.Pod{
+									PodID:      "pod-123",
+									Name:       tt.podName,
+									Namespace:  tt.namespace,
+									Status:     types.PodPending,
+									Containers: tt.containers,
+									Labels:     tt.labels,
+									CreatedAt:  time.Now(),
+								}
+								_ = json.NewEncoder(w).Encode(response)
+							} else {
+								_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
+							}
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				pod, err := client.CreatePod(tt.podName, tt.namespace, tt.labels, tt.containers)
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("CreatePod() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				if !tt.wantErr && pod == nil {
+					t.Error("CreatePod() returned nil pod")
+				}
+
+				if !tt.wantErr && pod != nil {
+					if pod.Name != tt.podName {
+						t.Errorf("pod name = %v, want %v", pod.Name, tt.podName)
+					}
+				}
+			},
+		)
+	}
+}
+
+func TestClient_ListPods(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		response   interface{}
+		wantErr    bool
+		wantCount  int
+	}{
+		{
+			name:       "successful list",
+			statusCode: http.StatusOK,
+			response: []types.Pod{
+				{
+					PodID:     "pod-1",
+					Name:      "web-1",
+					Namespace: "default",
+					Status:    types.PodRunning,
+					CreatedAt: time.Now(),
+				},
+				{
+					PodID:     "pod-2",
+					Name:      "api-1",
+					Namespace: "default",
+					Status:    types.PodPending,
+					CreatedAt: time.Now(),
+				},
+			},
+			wantErr:   false,
+			wantCount: 2,
+		},
+		{
+			name:       "empty list",
+			statusCode: http.StatusOK,
+			response:   []types.Pod{},
+			wantErr:    false,
+			wantCount:  0,
+		},
+		{
+			name:       "server error",
+			statusCode: http.StatusInternalServerError,
+			response:   map[string]string{"error": "internal server error"},
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							if r.URL.Path != "/api/v1/pods" {
+								t.Errorf("unexpected path: %s", r.URL.Path)
+							}
+							if r.Method != http.MethodGet {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							w.WriteHeader(tt.statusCode)
+							_ = json.NewEncoder(w).Encode(tt.response)
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				pods, err := client.ListPods()
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("ListPods() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				if !tt.wantErr && len(pods) != tt.wantCount {
+					t.Errorf("ListPods() count = %v, want %v", len(pods), tt.wantCount)
+				}
+			},
+		)
+	}
+}
+
+func TestClient_GetPod(t *testing.T) {
+	tests := []struct {
+		name       string
+		podID      string
+		statusCode int
+		response   interface{}
+		wantErr    bool
+	}{
+		{
+			name:       "successful get",
+			podID:      "pod-123",
+			statusCode: http.StatusOK,
+			response: types.Pod{
+				PodID:     "pod-123",
+				Name:      "test-pod",
+				Namespace: "default",
+				Status:    types.PodRunning,
+				CreatedAt: time.Now(),
+			},
+			wantErr: false,
+		},
+		{
+			name:       "pod not found",
+			podID:      "nonexistent",
+			statusCode: http.StatusNotFound,
+			response:   map[string]string{"error": "pod not found"},
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							expectedPath := "/api/v1/pods/" + tt.podID
+							if r.URL.Path != expectedPath {
+								t.Errorf("unexpected path: %s, want %s", r.URL.Path, expectedPath)
+							}
+							if r.Method != http.MethodGet {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							w.WriteHeader(tt.statusCode)
+							_ = json.NewEncoder(w).Encode(tt.response)
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				pod, err := client.GetPod(tt.podID)
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("GetPod() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				if !tt.wantErr && pod.PodID != tt.podID {
+					t.Errorf("pod ID = %v, want %v", pod.PodID, tt.podID)
+				}
+			},
+		)
+	}
+}
+
+func TestClient_DeletePod(t *testing.T) {
+	tests := []struct {
+		name       string
+		podID      string
+		statusCode int
+		wantErr    bool
+	}{
+		{
+			name:       "successful delete",
+			podID:      "pod-123",
+			statusCode: http.StatusOK,
+			wantErr:    false,
+		},
+		{
+			name:       "pod not found",
+			podID:      "nonexistent",
+			statusCode: http.StatusNotFound,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				server := httptest.NewServer(
+					http.HandlerFunc(
+						func(w http.ResponseWriter, r *http.Request) {
+							expectedPath := "/api/v1/pods/" + tt.podID
+							if r.URL.Path != expectedPath {
+								t.Errorf("unexpected path: %s, want %s", r.URL.Path, expectedPath)
+							}
+							if r.Method != http.MethodDelete {
+								t.Errorf("unexpected method: %s", r.Method)
+							}
+
+							w.WriteHeader(tt.statusCode)
+							if tt.statusCode != http.StatusOK {
+								_ = json.NewEncoder(w).Encode(map[string]string{"error": "pod not found"})
+							}
+						},
+					),
+				)
+				defer server.Close()
+
+				client := NewClient(server.URL)
+				err := client.DeletePod(tt.podID)
+
+				if (err != nil) != tt.wantErr {
+					t.Errorf("DeletePod() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			},
+		)
+	}
+}
