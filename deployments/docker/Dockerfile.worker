@@ -1,0 +1,67 @@
+# Multi-stage build for Podling Worker
+FROM golang:1.25-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build arguments for version info
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG VCS_REF
+
+# Build the worker binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
+    go build -ldflags="-s -w -X main.version=${VERSION} -X main.buildDate=${BUILD_DATE} -X main.commit=${VCS_REF}" \
+    -o podling-worker \
+    ./cmd/worker
+
+# Final stage - minimal runtime image
+FROM alpine:3.20
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
+
+# Create non-root user
+RUN addgroup -g 1000 podling && \
+    adduser -D -u 1000 -G podling podling
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/podling-worker /app/podling-worker
+
+# Set ownership
+RUN chown -R podling:podling /app
+
+# Switch to non-root user
+USER podling
+
+# Expose worker port (default 8081, configurable)
+EXPOSE 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
+
+# Labels
+LABEL org.opencontainers.image.title="Podling Worker"
+LABEL org.opencontainers.image.description="Podling container orchestrator - Worker agent"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${VCS_REF}"
+LABEL org.opencontainers.image.source="https://github.com/muller/podling"
+
+# Note: Worker requires access to Docker socket, which must be mounted from host
+# Example: docker run -v /var/run/docker.sock:/var/run/docker.sock podling-worker
+
+ENTRYPOINT ["/app/podling-worker"]
+CMD ["-node-id=worker-1", "-port=8081"]
