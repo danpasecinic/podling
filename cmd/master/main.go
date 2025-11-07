@@ -12,6 +12,7 @@ import (
 
 	"github.com/danpasecinic/podling/internal/master/api"
 	"github.com/danpasecinic/podling/internal/master/scheduler"
+	"github.com/danpasecinic/podling/internal/master/services"
 	"github.com/danpasecinic/podling/internal/master/state"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -31,7 +32,18 @@ func main() {
 	}
 
 	sched := scheduler.NewRoundRobin()
-	server := api.NewServer(store, sched)
+
+	endpointController := services.NewEndpointController(store)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		if err := endpointController.Start(ctx); err != nil {
+			log.Printf("endpoint controller error: %v", err)
+		}
+	}()
+
+	server := api.NewServer(store, sched, endpointController)
 
 	e := echo.New()
 	e.Use(middleware.Logger())
@@ -63,10 +75,10 @@ func main() {
 
 	e.Logger.Info("shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 
-	if err := e.Shutdown(ctx); err != nil {
+	if err := e.Shutdown(shutdownCtx); err != nil {
 		e.Logger.Fatal(err)
 	}
 

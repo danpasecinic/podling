@@ -169,7 +169,22 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 		}
 	}
 
-	if err := a.updatePodStatus(pod.PodID, types.PodRunning, pod.Containers, "", ""); err != nil {
+	// Get pod IP from the first container
+	// In a real implementation, containers in a pod would share a network namespace
+	// For now, we'll use the IP of the first container as the pod IP
+	var podIP string
+	if len(pod.Containers) > 0 && pod.Containers[0].ContainerID != "" {
+		ip, err := a.dockerClient.GetContainerIP(podCtx, pod.Containers[0].ContainerID)
+		if err != nil {
+			log.Printf("failed to get container IP: %v", err)
+		} else {
+			podIP = ip
+			log.Printf("pod %s assigned IP: %s", pod.PodID, podIP)
+		}
+	}
+
+	// Update pod with container IDs and IP
+	if err := a.updatePodStatusWithIP(pod.PodID, types.PodRunning, pod.Containers, podIP, "", ""); err != nil {
 		log.Printf("failed to update pod with container IDs: %v", err)
 	}
 
@@ -289,6 +304,58 @@ func (a *Agent) updatePodStatus(
 	}
 	if reason != "" {
 		payload["reason"] = reason
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pod status: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create pod status request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send pod status update: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("pod status update returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// updatePodStatusWithIP sends a pod status update to the master including pod IP
+func (a *Agent) updatePodStatusWithIP(
+	podID string, status types.PodStatus, containers []types.Container, podIP, message, reason string,
+) error {
+	url := fmt.Sprintf("%s/api/v1/pods/%s/status", a.masterURL, podID)
+
+	payload := map[string]interface{}{
+		"status": status,
+	}
+
+	if containers != nil {
+		payload["containers"] = containers
+	}
+	if message != "" {
+		payload["message"] = message
+	}
+	if reason != "" {
+		payload["reason"] = reason
+	}
+
+	// Add pod IP as annotation
+	if podIP != "" {
+		payload["annotations"] = map[string]string{
+			"podling.io/pod-ip": podIP,
+		}
 	}
 
 	jsonData, err := json.Marshal(payload)
