@@ -166,7 +166,10 @@ func (c *Client) GetTaskLogs(task *types.Task, tail int) (string, error) {
 }
 
 // CreatePod creates a new pod with the given containers
-func (c *Client) CreatePod(name, namespace string, labels map[string]string, containers []types.Container) (*types.Pod, error) {
+func (c *Client) CreatePod(name, namespace string, labels map[string]string, containers []types.Container) (
+	*types.Pod,
+	error,
+) {
 	payload := map[string]interface{}{
 		"name":       name,
 		"containers": containers,
@@ -253,6 +256,150 @@ func (c *Client) GetPod(podID string) (*types.Pod, error) {
 // DeletePod deletes a pod by ID
 func (c *Client) DeletePod(podID string) error {
 	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v1/pods/"+podID, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// CreateService creates a new service
+func (c *Client) CreateService(
+	name, namespace string, selector map[string]string, ports []types.ServicePort, labels map[string]string,
+	serviceType, sessionAffinity string,
+) (*types.Service, error) {
+	payload := map[string]interface{}{
+		"name":     name,
+		"selector": selector,
+		"ports":    ports,
+	}
+
+	if namespace != "" {
+		payload["namespace"] = namespace
+	}
+
+	if len(labels) > 0 {
+		payload["labels"] = labels
+	}
+
+	if serviceType != "" {
+		payload["type"] = serviceType
+	}
+
+	if sessionAffinity != "" {
+		payload["sessionAffinity"] = sessionAffinity
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	resp, err := c.httpClient.Post(
+		c.baseURL+"/api/v1/services",
+		"application/json",
+		bytes.NewReader(data),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("post request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var service types.Service
+	if err := json.NewDecoder(resp.Body).Decode(&service); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &service, nil
+}
+
+// ListServices retrieves all services, optionally filtered by namespace
+func (c *Client) ListServices(namespace string) ([]types.Service, error) {
+	url := c.baseURL + "/api/v1/services"
+	if namespace != "" {
+		url += "?namespace=" + namespace
+	}
+
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("get request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var services []types.Service
+	if err := json.NewDecoder(resp.Body).Decode(&services); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return services, nil
+}
+
+// GetService retrieves a specific service by ID
+func (c *Client) GetService(serviceID string) (*types.Service, error) {
+	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/services/" + serviceID)
+	if err != nil {
+		return nil, fmt.Errorf("get request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var service types.Service
+	if err := json.NewDecoder(resp.Body).Decode(&service); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &service, nil
+}
+
+// GetEndpoints retrieves endpoints for a specific service
+func (c *Client) GetEndpoints(serviceID string) (*types.Endpoints, error) {
+	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/services/" + serviceID + "/endpoints")
+	if err != nil {
+		return nil, fmt.Errorf("get request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var endpoints types.Endpoints
+	if err := json.NewDecoder(resp.Body).Decode(&endpoints); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &endpoints, nil
+}
+
+// DeleteService deletes a service by ID
+func (c *Client) DeleteService(serviceID string) error {
+	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v1/services/"+serviceID, nil)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
