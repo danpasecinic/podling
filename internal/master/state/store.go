@@ -21,6 +21,12 @@ var (
 	ErrPodNotFound = errors.New("pod not found")
 	// ErrPodAlreadyExists is returned when attempting to add a duplicate pod
 	ErrPodAlreadyExists = errors.New("pod already exists")
+	// ErrServiceNotFound is returned when a service is not found in the store
+	ErrServiceNotFound = errors.New("service not found")
+	// ErrServiceAlreadyExists is returned when attempting to add a duplicate service
+	ErrServiceAlreadyExists = errors.New("service already exists")
+	// ErrEndpointsNotFound is returned when endpoints are not found in the store
+	ErrEndpointsNotFound = errors.New("endpoints not found")
 )
 
 // TaskUpdate contains fields that can be updated for a task
@@ -51,6 +57,7 @@ type PodUpdate struct {
 	FinishedAt  *time.Time
 	Message     *string
 	Reason      *string
+	Annotations *map[string]string
 }
 
 // StateStore defines the interface for managing task and node state
@@ -74,24 +81,43 @@ type StateStore interface {
 	UpdateNode(nodeID string, updates NodeUpdate) error
 	ListNodes() ([]types.Node, error)
 
+	// Service operations
+	AddService(service types.Service) error
+	GetService(serviceID string) (types.Service, error)
+	GetServiceByName(namespace, name string) (types.Service, error)
+	UpdateService(serviceID string, updates types.ServiceUpdate) error
+	ListServices(namespace string) ([]types.Service, error)
+	DeleteService(serviceID string) error
+
+	// Endpoints operations
+	SetEndpoints(endpoints types.Endpoints) error
+	GetEndpoints(serviceID string) (types.Endpoints, error)
+	GetEndpointsByServiceName(namespace, serviceName string) (types.Endpoints, error)
+	DeleteEndpoints(serviceID string) error
+
 	// Utility
 	GetAvailableNodes() ([]types.Node, error)
+	ListPodsByLabels(namespace string, labels map[string]string) ([]types.Pod, error)
 }
 
 // InMemoryStore is a thread-safe in-memory implementation of StateStore
 type InMemoryStore struct {
-	mu    sync.RWMutex
-	tasks map[string]types.Task
-	pods  map[string]types.Pod
-	nodes map[string]types.Node
+	mu        sync.RWMutex
+	tasks     map[string]types.Task
+	pods      map[string]types.Pod
+	nodes     map[string]types.Node
+	services  map[string]types.Service
+	endpoints map[string]types.Endpoints // key is serviceID
 }
 
 // NewInMemoryStore creates a new in-memory state store
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
-		tasks: make(map[string]types.Task),
-		pods:  make(map[string]types.Pod),
-		nodes: make(map[string]types.Node),
+		tasks:     make(map[string]types.Task),
+		pods:      make(map[string]types.Pod),
+		nodes:     make(map[string]types.Node),
+		services:  make(map[string]types.Service),
+		endpoints: make(map[string]types.Endpoints),
 	}
 }
 
@@ -232,6 +258,15 @@ func (s *InMemoryStore) UpdatePod(podID string, updates PodUpdate) error {
 	if updates.Reason != nil {
 		pod.Reason = *updates.Reason
 	}
+	if updates.Annotations != nil {
+		// Merge annotations (preserve existing, add/update new ones)
+		if pod.Annotations == nil {
+			pod.Annotations = make(map[string]string)
+		}
+		for k, v := range *updates.Annotations {
+			pod.Annotations[k] = v
+		}
+	}
 
 	s.pods[podID] = pod
 	return nil
@@ -340,4 +375,225 @@ func (s *InMemoryStore) GetAvailableNodes() ([]types.Node, error) {
 	}
 
 	return nodes, nil
+}
+
+// AddService adds a new service to the store
+func (s *InMemoryStore) AddService(service types.Service) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.services[service.ServiceID]; exists {
+		return ErrServiceAlreadyExists
+	}
+
+	s.services[service.ServiceID] = service
+	return nil
+}
+
+// GetService retrieves a service by ID
+func (s *InMemoryStore) GetService(serviceID string) (types.Service, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	service, exists := s.services[serviceID]
+	if !exists {
+		return types.Service{}, ErrServiceNotFound
+	}
+
+	return service, nil
+}
+
+// GetServiceByName retrieves a service by namespace and name
+func (s *InMemoryStore) GetServiceByName(namespace, name string) (types.Service, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	for _, service := range s.services {
+		svcNamespace := service.Namespace
+		if svcNamespace == "" {
+			svcNamespace = "default"
+		}
+		if svcNamespace == namespace && service.Name == name {
+			return service, nil
+		}
+	}
+
+	return types.Service{}, ErrServiceNotFound
+}
+
+// UpdateService updates specific fields of a service
+func (s *InMemoryStore) UpdateService(serviceID string, updates types.ServiceUpdate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	service, exists := s.services[serviceID]
+	if !exists {
+		return ErrServiceNotFound
+	}
+
+	if updates.Selector != nil {
+		service.Selector = *updates.Selector
+	}
+	if updates.Ports != nil {
+		service.Ports = *updates.Ports
+	}
+	if updates.Labels != nil {
+		service.Labels = *updates.Labels
+	}
+	if updates.Annotations != nil {
+		service.Annotations = *updates.Annotations
+	}
+	if updates.SessionAffinity != nil {
+		service.SessionAffinity = *updates.SessionAffinity
+	}
+
+	service.UpdatedAt = time.Now()
+	s.services[serviceID] = service
+	return nil
+}
+
+// ListServices returns all services in the specified namespace
+// If namespace is empty, returns services from all namespaces
+func (s *InMemoryStore) ListServices(namespace string) ([]types.Service, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	services := make([]types.Service, 0)
+	for _, service := range s.services {
+		svcNamespace := service.Namespace
+		if svcNamespace == "" {
+			svcNamespace = "default"
+		}
+
+		if namespace == "" {
+			services = append(services, service)
+			continue
+		}
+
+		filterNamespace := namespace
+		if filterNamespace == "" {
+			filterNamespace = "default"
+		}
+
+		if svcNamespace == filterNamespace {
+			services = append(services, service)
+		}
+	}
+
+	return services, nil
+}
+
+// DeleteService removes a service from the store
+func (s *InMemoryStore) DeleteService(serviceID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.services[serviceID]; !exists {
+		return ErrServiceNotFound
+	}
+
+	delete(s.services, serviceID)
+	return nil
+}
+
+// SetEndpoints sets or updates endpoints for a service
+func (s *InMemoryStore) SetEndpoints(endpoints types.Endpoints) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	endpoints.UpdatedAt = time.Now()
+	s.endpoints[endpoints.ServiceID] = endpoints
+	return nil
+}
+
+// GetEndpoints retrieves endpoints by service ID
+func (s *InMemoryStore) GetEndpoints(serviceID string) (types.Endpoints, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	endpoints, exists := s.endpoints[serviceID]
+	if !exists {
+		return types.Endpoints{}, ErrEndpointsNotFound
+	}
+
+	return endpoints, nil
+}
+
+// GetEndpointsByServiceName retrieves endpoints by namespace and service name
+func (s *InMemoryStore) GetEndpointsByServiceName(namespace, serviceName string) (types.Endpoints, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Normalize empty namespace to "default"
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	for _, endpoints := range s.endpoints {
+		epNamespace := endpoints.Namespace
+		if epNamespace == "" {
+			epNamespace = "default"
+		}
+		if epNamespace == namespace && endpoints.ServiceName == serviceName {
+			return endpoints, nil
+		}
+	}
+
+	return types.Endpoints{}, ErrEndpointsNotFound
+}
+
+// DeleteEndpoints removes endpoints from the store
+func (s *InMemoryStore) DeleteEndpoints(serviceID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.endpoints[serviceID]; !exists {
+		return ErrEndpointsNotFound
+	}
+
+	delete(s.endpoints, serviceID)
+	return nil
+}
+
+// ListPodsByLabels returns pods matching the label selector in a namespace
+func (s *InMemoryStore) ListPodsByLabels(namespace string, labels map[string]string) ([]types.Pod, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Normalize empty namespace to "default"
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	pods := make([]types.Pod, 0)
+	for _, pod := range s.pods {
+		podNamespace := pod.Namespace
+		if podNamespace == "" {
+			podNamespace = "default"
+		}
+
+		// Skip if namespace doesn't match
+		if podNamespace != namespace {
+			continue
+		}
+
+		// Check if pod matches all label selectors
+		matches := true
+		for key, value := range labels {
+			if podValue, ok := pod.Labels[key]; !ok || podValue != value {
+				matches = false
+				break
+			}
+		}
+
+		if matches {
+			pods = append(pods, pod)
+		}
+	}
+
+	return pods, nil
 }

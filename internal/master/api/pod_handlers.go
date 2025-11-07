@@ -22,10 +22,11 @@ type CreatePodRequest struct {
 
 // UpdatePodStatusRequest represents a request to update a pod's status
 type UpdatePodStatusRequest struct {
-	Status     types.PodStatus   `json:"status" validate:"required"`
-	Containers []types.Container `json:"containers,omitempty"`
-	Message    string            `json:"message,omitempty"`
-	Reason     string            `json:"reason,omitempty"`
+	Status      types.PodStatus   `json:"status" validate:"required"`
+	Containers  []types.Container `json:"containers,omitempty"`
+	Message     string            `json:"message,omitempty"`
+	Reason      string            `json:"reason,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // CreatePod handles POST /api/v1/pods
@@ -149,6 +150,11 @@ func (s *Server) UpdatePodStatus(c echo.Context) error {
 	// Update containers if provided
 	if req.Containers != nil {
 		update.Containers = req.Containers
+	}
+
+	// Update annotations if provided
+	if req.Annotations != nil {
+		update.Annotations = &req.Annotations
 	}
 
 	switch req.Status {

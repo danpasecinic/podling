@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/danpasecinic/podling/internal/master/scheduler"
+	"github.com/danpasecinic/podling/internal/master/services"
 	"github.com/danpasecinic/podling/internal/master/state"
 	"github.com/danpasecinic/podling/internal/types"
 	"github.com/labstack/echo/v4"
@@ -16,7 +17,8 @@ import (
 func setupTestServer() (*Server, *echo.Echo) {
 	store := state.NewInMemoryStore()
 	sched := scheduler.NewRoundRobin()
-	server := NewServer(store, sched)
+	endpointController := services.NewEndpointController(store)
+	server := NewServer(store, sched, endpointController)
 	e := echo.New()
 	server.RegisterRoutes(e)
 	return server, e
