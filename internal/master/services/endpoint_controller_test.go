@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -405,5 +406,136 @@ func TestEndpointControllerAllocateReleaseClusterIP(t *testing.T) {
 	err = ec.ReleaseClusterIP(ip)
 	if err == nil {
 		t.Error("Expected error when releasing already-released IP")
+	}
+}
+
+func TestEndpointControllerSyncAllEndpoints(t *testing.T) {
+	store := state.NewInMemoryStore()
+	ec := NewEndpointController(store)
+
+	service1 := types.Service{
+		ServiceID: "svc-1",
+		Name:      "web-service",
+		Namespace: "default",
+		Type:      types.ServiceTypeClusterIP,
+		ClusterIP: "10.96.0.1",
+		Selector: map[string]string{
+			"app": "nginx",
+		},
+		Ports: []types.ServicePort{
+			{Port: 80, TargetPort: 8080, Protocol: "TCP"},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	service2 := types.Service{
+		ServiceID: "svc-2",
+		Name:      "api-service",
+		Namespace: "default",
+		Type:      types.ServiceTypeClusterIP,
+		ClusterIP: "10.96.0.2",
+		Selector: map[string]string{
+			"app": "backend",
+		},
+		Ports: []types.ServicePort{
+			{Port: 8080, TargetPort: 8080, Protocol: "TCP"},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err := store.AddService(service1)
+	if err != nil {
+		t.Fatalf("Failed to add service1: %v", err)
+	}
+
+	err = store.AddService(service2)
+	if err != nil {
+		t.Fatalf("Failed to add service2: %v", err)
+	}
+
+	pod1 := types.Pod{
+		PodID:     "pod-1",
+		Name:      "web-1",
+		Namespace: "default",
+		Labels: map[string]string{
+			"app": "nginx",
+		},
+		Status: types.PodRunning,
+		NodeID: "node-1",
+		Annotations: map[string]string{
+			"podling.io/pod-ip": "172.17.0.2",
+		},
+		Containers: []types.Container{
+			{
+				Name:   "nginx",
+				Status: types.ContainerRunning,
+			},
+		},
+		CreatedAt: time.Now(),
+	}
+
+	pod2 := types.Pod{
+		PodID:     "pod-2",
+		Name:      "api-1",
+		Namespace: "default",
+		Labels: map[string]string{
+			"app": "backend",
+		},
+		Status: types.PodRunning,
+		NodeID: "node-1",
+		Annotations: map[string]string{
+			"podling.io/pod-ip": "172.17.0.3",
+		},
+		Containers: []types.Container{
+			{
+				Name:   "backend",
+				Status: types.ContainerRunning,
+			},
+		},
+		CreatedAt: time.Now(),
+	}
+
+	err = store.AddPod(pod1)
+	if err != nil {
+		t.Fatalf("Failed to add pod1: %v", err)
+	}
+
+	err = store.AddPod(pod2)
+	if err != nil {
+		t.Fatalf("Failed to add pod2: %v", err)
+	}
+
+	ctx := context.Background()
+	err = ec.syncAllEndpoints(ctx)
+	if err != nil {
+		t.Fatalf("Failed to sync all endpoints: %v", err)
+	}
+
+	endpoints1, err := store.GetEndpoints("svc-1")
+	if err != nil {
+		t.Fatalf("Failed to get endpoints for svc-1: %v", err)
+	}
+
+	if !endpoints1.HasEndpoints() {
+		t.Error("Expected endpoints for svc-1")
+	}
+
+	if len(endpoints1.Subsets) == 0 {
+		t.Fatal("Expected at least one subset for svc-1")
+	}
+
+	if len(endpoints1.Subsets[0].Addresses) != 1 {
+		t.Errorf("Expected 1 address for svc-1, got %d", len(endpoints1.Subsets[0].Addresses))
+	}
+
+	endpoints2, err := store.GetEndpoints("svc-2")
+	if err != nil {
+		t.Fatalf("Failed to get endpoints for svc-2: %v", err)
+	}
+
+	if !endpoints2.HasEndpoints() {
+		t.Error("Expected endpoints for svc-2")
 	}
 }
