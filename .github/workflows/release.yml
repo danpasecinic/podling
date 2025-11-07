@@ -1,0 +1,208 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [ linux, darwin, windows ]
+        goarch: [ amd64, arm64 ]
+        exclude:
+          - goos: windows
+            goarch: arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build binaries
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+
+          # Set binary extension for Windows
+          EXT=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            EXT=".exe"
+          fi
+
+          # Build master
+          go build -ldflags="-s -w -X main.version=${VERSION}" \
+            -o "bin/podling-master-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}" \
+            ./cmd/master
+
+          # Build worker
+          go build -ldflags="-s -w -X main.version=${VERSION}" \
+            -o "bin/podling-worker-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}" \
+            ./cmd/worker
+
+          # Build CLI
+          go build -ldflags="-s -w -X main.version=${VERSION}" \
+            -o "bin/podling-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}" \
+            ./cmd/podling
+
+      - name: Create archives
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          OS=${{ matrix.goos }}
+          ARCH=${{ matrix.goarch }}
+
+          # Create directory for this platform
+          mkdir -p "dist/podling-${VERSION}-${OS}-${ARCH}"
+
+          # Copy binaries
+          cp bin/podling-master-${OS}-${ARCH}* "dist/podling-${VERSION}-${OS}-${ARCH}/"
+          cp bin/podling-worker-${OS}-${ARCH}* "dist/podling-${VERSION}-${OS}-${ARCH}/"
+          cp bin/podling-${OS}-${ARCH}* "dist/podling-${VERSION}-${OS}-${ARCH}/"
+
+          # Copy docs
+          cp README.md "dist/podling-${VERSION}-${OS}-${ARCH}/"
+          cp LICENSE* "dist/podling-${VERSION}-${OS}-${ARCH}/" 2>/dev/null || true
+
+          # Create archive
+          cd dist
+          if [ "${OS}" = "windows" ]; then
+            zip -r "podling-${VERSION}-${OS}-${ARCH}.zip" "podling-${VERSION}-${OS}-${ARCH}"
+          else
+            tar czf "podling-${VERSION}-${OS}-${ARCH}.tar.gz" "podling-${VERSION}-${OS}-${ARCH}"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (Windows)
+        uses: actions/upload-artifact@v4
+        if: matrix.goos == 'windows'
+        with:
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.zip
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Consolidate artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release/ \;
+          ls -lh release/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 ${GITHUB_REF}^ 2>/dev/null || echo "")
+
+          # Generate changelog
+          echo "## What's Changed" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          if [ -n "$PREV_TAG" ]; then
+            git log ${PREV_TAG}..${GITHUB_REF} --pretty=format:"- %s (%h)" >> CHANGELOG.md
+          else
+            git log ${GITHUB_REF} --pretty=format:"- %s (%h)" >> CHANGELOG.md
+          fi
+
+          echo "" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## Installation" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "Download the appropriate binary for your platform from the assets below." >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Quick Install (Linux/macOS)" >> CHANGELOG.md
+          echo '```bash' >> CHANGELOG.md
+          echo "# Download and extract" >> CHANGELOG.md
+          echo "curl -L https://github.com/${{ github.repository }}/releases/download/${VERSION}/podling-${VERSION}-linux-amd64.tar.gz | tar xz" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "# Make binaries executable and move to PATH" >> CHANGELOG.md
+          echo "chmod +x podling-${VERSION}-linux-amd64/*" >> CHANGELOG.md
+          echo "sudo mv podling-${VERSION}-linux-amd64/* /usr/local/bin/" >> CHANGELOG.md
+          echo '```' >> CHANGELOG.md
+
+          cat CHANGELOG.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  checksums:
+    name: Generate Checksums
+    needs: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate checksums
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release/ \;
+          cd release
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload checksums to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/SHA256SUMS
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
