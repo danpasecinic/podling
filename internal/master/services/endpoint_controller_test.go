@@ -97,10 +97,13 @@ func TestNextIP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.input, func(t *testing.T) {
-				ip := []byte{10, 96, 0, 1}
-				if tt.input == "10.96.0.255" {
+				var ip []byte
+				switch tt.input {
+				case "10.96.0.1":
+					ip = []byte{10, 96, 0, 1}
+				case "10.96.0.255":
 					ip = []byte{10, 96, 0, 255}
-				} else if tt.input == "10.96.255.255" {
+				case "10.96.255.255":
 					ip = []byte{10, 96, 255, 255}
 				}
 
