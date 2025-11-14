@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 func TestNewClient(t *testing.T) {
@@ -656,11 +657,11 @@ func TestGetNetworkIP(t *testing.T) {
 	}
 	defer func() { _ = client.RemovePodNetwork(ctx, networkID) }()
 
-	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
+	if err := client.PullImage(ctx, "nginx:alpine"); err != nil {
 		t.Fatalf("PullImage() error = %v", err)
 	}
 
-	containerID, err := client.CreateContainerInNetwork(ctx, "alpine:latest", nil, networkID)
+	containerID, err := client.CreateContainerInNetwork(ctx, "nginx:alpine", nil, networkID)
 	if err != nil {
 		t.Fatalf("CreateContainerInNetwork() error = %v", err)
 	}
@@ -671,6 +672,7 @@ func TestGetNetworkIP(t *testing.T) {
 	}
 	defer func() { _ = client.StopContainer(ctx, containerID) }()
 
+	time.Sleep(100 * time.Millisecond)
 	t.Run(
 		"get IP from network", func(t *testing.T) {
 			ip, err := client.GetNetworkIP(ctx, containerID, networkID)

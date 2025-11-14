@@ -267,6 +267,12 @@ func (c *Client) ConnectContainerToNetwork(ctx context.Context, networkID, conta
 
 // GetNetworkIP returns the IP address of a container in a specific network
 func (c *Client) GetNetworkIP(ctx context.Context, containerID, networkID string) (string, error) {
+	networkInfo, err := c.cli.NetworkInspect(ctx, networkID, network.InspectOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect network %s: %w", networkID, err)
+	}
+	networkName := networkInfo.Name
+
 	inspect, err := c.cli.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
@@ -276,12 +282,13 @@ func (c *Client) GetNetworkIP(ctx context.Context, containerID, networkID string
 		return "", fmt.Errorf("no network settings found for container %s", containerID)
 	}
 
-	// Find the network by ID or name
-	for netName, netSettings := range inspect.NetworkSettings.Networks {
-		if netSettings.NetworkID == networkID || netName == networkID {
-			if netSettings.IPAddress != "" {
-				return netSettings.IPAddress, nil
-			}
+	if netSettings, ok := inspect.NetworkSettings.Networks[networkName]; ok {
+		return netSettings.IPAddress, nil
+	}
+
+	for _, netSettings := range inspect.NetworkSettings.Networks {
+		if netSettings.NetworkID == networkID {
+			return netSettings.IPAddress, nil
 		}
 	}
 
@@ -297,11 +304,13 @@ func (c *Client) CreateContainerInNetwork(
 		Env:   env,
 	}
 
-	hostConfig := &container.HostConfig{
-		NetworkMode: container.NetworkMode(networkID),
+	networkingConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			networkID: {},
+		},
 	}
 
-	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
+	resp, err := c.cli.ContainerCreate(ctx, config, nil, networkingConfig, nil, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
@@ -318,9 +327,7 @@ func (c *Client) CreateContainerInNetworkWithResources(
 		Env:   env,
 	}
 
-	hostConfig := &container.HostConfig{
-		NetworkMode: container.NetworkMode(networkID),
-	}
+	hostConfig := &container.HostConfig{}
 
 	if cpuQuota > 0 {
 		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)
@@ -330,7 +337,13 @@ func (c *Client) CreateContainerInNetworkWithResources(
 		hostConfig.Memory = memoryLimit
 	}
 
-	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
+	networkingConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			networkID: {},
+		},
+	}
+
+	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, networkingConfig, nil, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
