@@ -231,12 +231,10 @@ func (c *Client) GetContainerIP(ctx context.Context, containerID string) (string
 func (c *Client) CreatePodNetwork(ctx context.Context, podID string) (string, error) {
 	networkName := fmt.Sprintf("pod-%s", podID)
 
+	// Note: We don't set com.docker.network.bridge.name as it has length/character restrictions
 	createResp, err := c.cli.NetworkCreate(
 		ctx, networkName, network.CreateOptions{
 			Driver: "bridge",
-			Options: map[string]string{
-				"com.docker.network.bridge.name": networkName,
-			},
 			Labels: map[string]string{
 				"podling.io/pod-id": podID,
 				"podling.io/type":   "pod-network",
