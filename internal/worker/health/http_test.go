@@ -154,3 +154,122 @@ func TestHTTPProbe_Check_InvalidConfig(t *testing.T) {
 		)
 	}
 }
+
+func TestValidateContainerIP(t *testing.T) {
+	tests := []struct {
+		name    string
+		ip      string
+		wantErr bool
+	}{
+		{"valid private IP 10.x", "10.0.0.1", false},
+		{"valid private IP 172.x", "172.16.0.1", false},
+		{"valid private IP 192.168.x", "192.168.1.1", false},
+		{"valid loopback", "127.0.0.1", false},
+		{"public IP rejected", "8.8.8.8", true},
+		{"public IP rejected (1.1.1.1)", "1.1.1.1", true},
+		{"empty IP", "", true},
+		{"invalid format", "not-an-ip", true},
+		{"multicast IP", "224.0.0.1", true},
+		{"unspecified IP", "0.0.0.0", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				err := validateContainerIP(tt.ip)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("validateContainerIP(%q) error = %v, wantErr %v", tt.ip, err, tt.wantErr)
+				}
+			},
+		)
+	}
+}
+
+func TestValidateHTTPPath(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{"valid path", "/health", false},
+		{"valid path with query", "/health?check=true", false},
+		{"valid nested path", "/api/v1/health", false},
+		{"empty path", "", true},
+		{"missing leading slash", "health", true},
+		{"path traversal", "/../../etc/passwd", true},
+		{"null byte", "/health\x00", true},
+		{"newline", "/health\n", true},
+		{"carriage return", "/health\r", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				err := validateHTTPPath(tt.path)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("validateHTTPPath(%q) error = %v, wantErr %v", tt.path, err, tt.wantErr)
+				}
+			},
+		)
+	}
+}
+
+func TestHTTPProbe_Check_SecurityValidation(t *testing.T) {
+	probe := NewHTTPProbe()
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		check       *types.HealthCheck
+		containerIP string
+		wantErrMsg  string
+	}{
+		{
+			name: "SSRF prevention - public IP",
+			check: &types.HealthCheck{
+				Type:           types.ProbeTypeHTTP,
+				HTTPPath:       "/health",
+				Port:           80,
+				TimeoutSeconds: 5,
+			},
+			containerIP: "8.8.8.8",
+			wantErrMsg:  "invalid container IP",
+		},
+		{
+			name: "path traversal prevention",
+			check: &types.HealthCheck{
+				Type:           types.ProbeTypeHTTP,
+				HTTPPath:       "/../../../etc/passwd",
+				Port:           8080,
+				TimeoutSeconds: 5,
+			},
+			containerIP: "127.0.0.1",
+			wantErrMsg:  "invalid HTTP path",
+		},
+		{
+			name: "port out of range",
+			check: &types.HealthCheck{
+				Type:           types.ProbeTypeHTTP,
+				HTTPPath:       "/health",
+				Port:           99999,
+				TimeoutSeconds: 5,
+			},
+			containerIP: "127.0.0.1",
+			wantErrMsg:  "invalid port configuration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				result := probe.Check(ctx, tt.check, tt.containerIP)
+				if result.Success {
+					t.Error("expected check to fail for security validation")
+				}
+				if result.Message == "" || len(result.Message) < len(tt.wantErrMsg) {
+					t.Errorf("expected error message containing %q, got %q", tt.wantErrMsg, result.Message)
+				}
+			},
+		)
+	}
+}
