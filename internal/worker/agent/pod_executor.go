@@ -17,6 +17,7 @@ import (
 // PodExecution tracks the state of a running pod
 type PodExecution struct {
 	pod            *types.Pod
+	networkID      string
 	containerIDs   map[string]string
 	healthCheckers map[string]*health.Checker
 	mu             sync.RWMutex
@@ -55,11 +56,32 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 		log.Printf("failed to update pod status to running: %v", err)
 	}
 
+	// Create a dedicated network for this pod
+	// All containers will share this network namespace
+	log.Printf("creating pod network for pod %s", pod.PodID)
+	networkID, err := a.dockerClient.CreatePodNetwork(podCtx, pod.PodID)
+	if err != nil {
+		errMsg := fmt.Sprintf("failed to create pod network: %v", err)
+		if updateErr := a.updatePodStatus(
+			pod.PodID, types.PodFailed, pod.Containers, errMsg, "NetworkCreateError",
+		); updateErr != nil {
+			log.Printf("failed to update pod status: %v", updateErr)
+		}
+		return fmt.Errorf("failed to create pod network: %w", err)
+	}
+
+	execution.mu.Lock()
+	execution.networkID = networkID
+	execution.mu.Unlock()
+
+	log.Printf("pod network created: %s", networkID)
+
 	for i := range pod.Containers {
 		container := &pod.Containers[i]
 		log.Printf("pulling image for container %s: %s", container.Name, container.Image)
 		if err := a.dockerClient.PullImage(podCtx, container.Image); err != nil {
 			errMsg := fmt.Sprintf("failed to pull image %s: %v", container.Image, err)
+			a.cleanupPodResources(context.Background(), execution)
 			if updateErr := a.updatePodStatus(
 				pod.PodID, types.PodFailed, pod.Containers, errMsg, "ImagePullError",
 			); updateErr != nil {
@@ -69,8 +91,8 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 		}
 	}
 
-	// In a Kubernetes-like implementation, we would create a pod-level network namespace
-	// For simplicity, we'll use Docker's default bridge network with container linking
+	// Create all containers in the pod network
+	// All containers will share the same network namespace and can communicate via localhost
 	for i := range pod.Containers {
 		container := &pod.Containers[i]
 
@@ -79,23 +101,25 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 			env = append(env, fmt.Sprintf("%s=%s", k, v))
 		}
 
-		log.Printf("creating container %s from image %s", container.Name, container.Image)
+		log.Printf("creating container %s from image %s in pod network", container.Name, container.Image)
 
 		var containerID string
 		var err error
 		if !container.Resources.Limits.IsZero() {
 			cpuLimit := container.Resources.Limits.GetCPULimitForDocker()
 			memoryLimit := container.Resources.Limits.GetMemoryLimitForDocker()
-			containerID, err = a.dockerClient.CreateContainerWithResources(
-				podCtx, container.Image, env, cpuLimit, memoryLimit,
+			containerID, err = a.dockerClient.CreateContainerInNetworkWithResources(
+				podCtx, container.Image, env, networkID, cpuLimit, memoryLimit,
 			)
 		} else {
-			containerID, err = a.dockerClient.CreateContainer(podCtx, container.Image, env)
+			containerID, err = a.dockerClient.CreateContainerInNetwork(
+				podCtx, container.Image, env, networkID,
+			)
 		}
 
 		if err != nil {
 			errMsg := fmt.Sprintf("failed to create container %s: %v", container.Name, err)
-			a.cleanupPodContainers(context.Background(), execution)
+			a.cleanupPodResources(context.Background(), execution)
 			if updateErr := a.updatePodStatus(
 				pod.PodID, types.PodFailed, pod.Containers, errMsg, "ContainerCreateError",
 			); updateErr != nil {
@@ -116,7 +140,7 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 			errMsg := fmt.Sprintf("failed to start container %s: %v", container.Name, err)
 			container.Status = types.ContainerTerminated
 			container.Error = err.Error()
-			a.cleanupPodContainers(context.Background(), execution)
+			a.cleanupPodResources(context.Background(), execution)
 			if updateErr := a.updatePodStatus(
 				pod.PodID, types.PodFailed, pod.Containers, errMsg, "ContainerStartError",
 			); updateErr != nil {
@@ -169,17 +193,16 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 		}
 	}
 
-	// Get pod IP from the first container
-	// In a real implementation, containers in a pod would share a network namespace
-	// For now, we'll use the IP of the first container as the pod IP
+	// Get pod IP from the pod network
+	// All containers in the pod share this IP address
 	var podIP string
 	if len(pod.Containers) > 0 && pod.Containers[0].ContainerID != "" {
-		ip, err := a.dockerClient.GetContainerIP(podCtx, pod.Containers[0].ContainerID)
+		ip, err := a.dockerClient.GetNetworkIP(podCtx, pod.Containers[0].ContainerID, networkID)
 		if err != nil {
-			log.Printf("failed to get container IP: %v", err)
+			log.Printf("failed to get pod IP from network: %v", err)
 		} else {
 			podIP = ip
-			log.Printf("pod %s assigned IP: %s", pod.PodID, podIP)
+			log.Printf("pod %s assigned IP: %s (shared by all containers)", pod.PodID, podIP)
 		}
 	}
 
@@ -240,7 +263,7 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 		}
 	}
 
-	a.cleanupPodContainers(context.Background(), execution)
+	a.cleanupPodResources(context.Background(), execution)
 
 	finalStatus := types.PodSucceeded
 	message := "All containers completed successfully"
@@ -264,13 +287,14 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 	return nil
 }
 
-// cleanupPodContainers stops and removes all containers in a pod
-func (a *Agent) cleanupPodContainers(ctx context.Context, execution *PodExecution) {
+// cleanupPodResources stops and removes all containers in a pod, and removes the pod network
+func (a *Agent) cleanupPodResources(ctx context.Context, execution *PodExecution) {
 	execution.mu.RLock()
 	containerIDs := make(map[string]string)
 	for name, id := range execution.containerIDs {
 		containerIDs[name] = id
 	}
+	networkID := execution.networkID
 	execution.mu.RUnlock()
 
 	for name, containerID := range containerIDs {
@@ -282,6 +306,13 @@ func (a *Agent) cleanupPodContainers(ctx context.Context, execution *PodExecutio
 
 		if err := a.dockerClient.RemoveContainer(ctx, containerID); err != nil {
 			log.Printf("error removing container %s: %v", name, err)
+		}
+	}
+
+	if networkID != "" {
+		log.Printf("removing pod network: %s", networkID)
+		if err := a.dockerClient.RemovePodNetwork(ctx, networkID); err != nil {
+			log.Printf("error removing pod network %s: %v", networkID, err)
 		}
 	}
 }
