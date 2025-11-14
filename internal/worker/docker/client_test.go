@@ -545,3 +545,161 @@ func TestGetContainerIP(t *testing.T) {
 		},
 	)
 }
+
+func TestCreatePodNetwork(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	t.Run(
+		"create and remove pod network", func(t *testing.T) {
+			podID := "test-pod-123"
+
+			networkID, err := client.CreatePodNetwork(ctx, podID)
+			if err != nil {
+				t.Fatalf("CreatePodNetwork() error = %v", err)
+			}
+			if networkID == "" {
+				t.Fatal("CreatePodNetwork() returned empty network ID")
+			}
+
+			defer func() {
+				_ = client.RemovePodNetwork(ctx, networkID)
+			}()
+
+			t.Logf("Created pod network: %s", networkID)
+		},
+	)
+
+	t.Run(
+		"remove nonexistent network", func(t *testing.T) {
+			err := client.RemovePodNetwork(ctx, "nonexistent-network")
+			if err == nil {
+				t.Error("RemovePodNetwork() expected error for nonexistent network")
+			}
+		},
+	)
+}
+
+func TestCreateContainerInNetwork(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+	podID := "test-pod-network-456"
+
+	networkID, err := client.CreatePodNetwork(ctx, podID)
+	if err != nil {
+		t.Fatalf("CreatePodNetwork() error = %v", err)
+	}
+	defer func() { _ = client.RemovePodNetwork(ctx, networkID) }()
+
+	t.Run(
+		"create container in network", func(t *testing.T) {
+			if err := client.PullImage(ctx, "alpine:latest"); err != nil {
+				t.Fatalf("PullImage() error = %v", err)
+			}
+
+			containerID, err := client.CreateContainerInNetwork(ctx, "alpine:latest", []string{"TEST=value"}, networkID)
+			if err != nil {
+				t.Fatalf("CreateContainerInNetwork() error = %v", err)
+			}
+			defer func() { _ = client.RemoveContainer(ctx, containerID) }()
+
+			if containerID == "" {
+				t.Fatal("CreateContainerInNetwork() returned empty container ID")
+			}
+
+			t.Logf("Created container in network: %s", containerID)
+		},
+	)
+
+	t.Run(
+		"create container with resources in network", func(t *testing.T) {
+			containerID, err := client.CreateContainerInNetworkWithResources(
+				ctx, "alpine:latest", []string{"CPU=limit"}, networkID, 0.5, 128*1024*1024,
+			)
+			if err != nil {
+				t.Fatalf("CreateContainerInNetworkWithResources() error = %v", err)
+			}
+			defer func() { _ = client.RemoveContainer(ctx, containerID) }()
+
+			if containerID == "" {
+				t.Fatal("CreateContainerInNetworkWithResources() returned empty container ID")
+			}
+
+			t.Logf("Created container with resources in network: %s", containerID)
+		},
+	)
+}
+
+func TestGetNetworkIP(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+	podID := "test-pod-ip-789"
+
+	networkID, err := client.CreatePodNetwork(ctx, podID)
+	if err != nil {
+		t.Fatalf("CreatePodNetwork() error = %v", err)
+	}
+	defer func() { _ = client.RemovePodNetwork(ctx, networkID) }()
+
+	if err := client.PullImage(ctx, "alpine:latest"); err != nil {
+		t.Fatalf("PullImage() error = %v", err)
+	}
+
+	containerID, err := client.CreateContainerInNetwork(ctx, "alpine:latest", nil, networkID)
+	if err != nil {
+		t.Fatalf("CreateContainerInNetwork() error = %v", err)
+	}
+	defer func() { _ = client.RemoveContainer(ctx, containerID) }()
+
+	if err := client.StartContainer(ctx, containerID); err != nil {
+		t.Fatalf("StartContainer() error = %v", err)
+	}
+	defer func() { _ = client.StopContainer(ctx, containerID) }()
+
+	t.Run(
+		"get IP from network", func(t *testing.T) {
+			ip, err := client.GetNetworkIP(ctx, containerID, networkID)
+			if err != nil {
+				t.Fatalf("GetNetworkIP() error = %v", err)
+			}
+			if ip == "" {
+				t.Fatal("GetNetworkIP() returned empty IP")
+			}
+
+			t.Logf("Container IP in network: %s", ip)
+		},
+	)
+
+	t.Run(
+		"get IP from wrong network", func(t *testing.T) {
+			_, err := client.GetNetworkIP(ctx, containerID, "wrong-network")
+			if err == nil {
+				t.Error("GetNetworkIP() expected error for wrong network")
+			}
+		},
+	)
+
+	t.Run(
+		"get IP from invalid container", func(t *testing.T) {
+			_, err := client.GetNetworkIP(ctx, "invalid-container", networkID)
+			if err == nil {
+				t.Error("GetNetworkIP() expected error for invalid container")
+			}
+		},
+	)
+}
