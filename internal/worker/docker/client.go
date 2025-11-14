@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 )
 
@@ -211,18 +212,130 @@ func (c *Client) GetContainerIP(ctx context.Context, containerID string) (string
 
 	// Get IP from networks
 	if inspect.NetworkSettings != nil && inspect.NetworkSettings.Networks != nil {
-		// Try default bridge network first
 		if bridge, ok := inspect.NetworkSettings.Networks["bridge"]; ok && bridge.IPAddress != "" {
 			return bridge.IPAddress, nil
 		}
 
-		// Fall back to any available network
-		for _, network := range inspect.NetworkSettings.Networks {
-			if network.IPAddress != "" {
-				return network.IPAddress, nil
+		for _, networkNamespace := range inspect.NetworkSettings.Networks {
+			if networkNamespace.IPAddress != "" {
+				return networkNamespace.IPAddress, nil
 			}
 		}
 	}
 
 	return "", fmt.Errorf("no IP address found for container %s", containerID)
+}
+
+// CreatePodNetwork creates a dedicated Docker bridge network for a pod
+// All containers in the pod will be attached to this network, sharing the same namespace
+func (c *Client) CreatePodNetwork(ctx context.Context, podID string) (string, error) {
+	networkName := fmt.Sprintf("pod-%s", podID)
+
+	createResp, err := c.cli.NetworkCreate(
+		ctx, networkName, network.CreateOptions{
+			Driver: "bridge",
+			Options: map[string]string{
+				"com.docker.network.bridge.name": networkName,
+			},
+			Labels: map[string]string{
+				"podling.io/pod-id": podID,
+				"podling.io/type":   "pod-network",
+			},
+		},
+	)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to create pod network %s: %w", networkName, err)
+	}
+
+	return createResp.ID, nil
+}
+
+// RemovePodNetwork removes a pod's network
+func (c *Client) RemovePodNetwork(ctx context.Context, networkID string) error {
+	if err := c.cli.NetworkRemove(ctx, networkID); err != nil {
+		return fmt.Errorf("failed to remove network %s: %w", networkID, err)
+	}
+	return nil
+}
+
+// ConnectContainerToNetwork attaches a container to a network
+func (c *Client) ConnectContainerToNetwork(ctx context.Context, networkID, containerID string) error {
+	if err := c.cli.NetworkConnect(ctx, networkID, containerID, nil); err != nil {
+		return fmt.Errorf("failed to connect container %s to network %s: %w", containerID, networkID, err)
+	}
+	return nil
+}
+
+// GetNetworkIP returns the IP address of a container in a specific network
+func (c *Client) GetNetworkIP(ctx context.Context, containerID, networkID string) (string, error) {
+	inspect, err := c.cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect container %s: %w", containerID, err)
+	}
+
+	if inspect.NetworkSettings == nil || inspect.NetworkSettings.Networks == nil {
+		return "", fmt.Errorf("no network settings found for container %s", containerID)
+	}
+
+	// Find the network by ID or name
+	for netName, netSettings := range inspect.NetworkSettings.Networks {
+		if netSettings.NetworkID == networkID || netName == networkID {
+			if netSettings.IPAddress != "" {
+				return netSettings.IPAddress, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("container %s not connected to network %s", containerID, networkID)
+}
+
+// CreateContainerInNetwork creates a container attached to a specific network
+func (c *Client) CreateContainerInNetwork(
+	ctx context.Context, imageName string, env []string, networkID string,
+) (string, error) {
+	config := &container.Config{
+		Image: imageName,
+		Env:   env,
+	}
+
+	hostConfig := &container.HostConfig{
+		NetworkMode: container.NetworkMode(networkID),
+	}
+
+	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w", err)
+	}
+
+	return resp.ID, nil
+}
+
+// CreateContainerInNetworkWithResources creates a container with resource limits in a specific network
+func (c *Client) CreateContainerInNetworkWithResources(
+	ctx context.Context, imageName string, env []string, networkID string, cpuQuota float64, memoryLimit int64,
+) (string, error) {
+	config := &container.Config{
+		Image: imageName,
+		Env:   env,
+	}
+
+	hostConfig := &container.HostConfig{
+		NetworkMode: container.NetworkMode(networkID),
+	}
+
+	if cpuQuota > 0 {
+		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)
+	}
+
+	if memoryLimit > 0 {
+		hostConfig.Memory = memoryLimit
+	}
+
+	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w", err)
+	}
+
+	return resp.ID, nil
 }
