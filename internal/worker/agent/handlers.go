@@ -25,9 +25,28 @@ func (s *Server) ExecuteTask(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
 	}
 
-	// Validate task ID matches
 	if req.Task.TaskID != taskID {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "task ID mismatch"})
+	}
+
+	if req.Task.LivenessProbe != nil {
+		if err := validateHealthCheck(req.Task.LivenessProbe); err != nil {
+			return c.JSON(
+				http.StatusBadRequest, map[string]string{
+					"error": fmt.Sprintf("invalid liveness probe: %v", err),
+				},
+			)
+		}
+	}
+
+	if req.Task.ReadinessProbe != nil {
+		if err := validateHealthCheck(req.Task.ReadinessProbe); err != nil {
+			return c.JSON(
+				http.StatusBadRequest, map[string]string{
+					"error": fmt.Sprintf("invalid readiness probe: %v", err),
+				},
+			)
+		}
 	}
 
 	// Execute task asynchronously
@@ -65,8 +84,6 @@ func (s *Server) GetTaskStatus(c echo.Context) error {
 // Returns container logs for a task.
 func (s *Server) GetTaskLogs(c echo.Context) error {
 	taskID := c.Param("id")
-	
-	// Get tail parameter (default 100 lines)
 	tail := 100
 	if tailParam := c.QueryParam("tail"); tailParam != "" {
 		if _, err := fmt.Sscanf(tailParam, "%d", &tail); err != nil {
@@ -79,9 +96,88 @@ func (s *Server) GetTaskLogs(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"taskId": taskID,
-		"logs":   logs,
-		"tail":   tail,
-	})
+	return c.JSON(
+		http.StatusOK, map[string]interface{}{
+			"taskId": taskID,
+			"logs":   logs,
+			"tail":   tail,
+		},
+	)
+}
+
+// validateHealthCheck validates health check configuration to prevent injection attacks
+func validateHealthCheck(check *types.HealthCheck) error {
+	if check == nil {
+		return nil
+	}
+
+	if check.Port < 0 || check.Port > 65535 {
+		return fmt.Errorf("port must be between 0 and 65535")
+	}
+
+	if check.Type == types.ProbeTypeHTTP {
+		if check.HTTPPath == "" {
+			return fmt.Errorf("HTTP path is required for HTTP probes")
+		}
+
+		// Validate HTTP path format
+		if len(check.HTTPPath) > 0 && check.HTTPPath[0] != '/' {
+			return fmt.Errorf("HTTP path must start with /")
+		}
+
+		// Reject obvious path traversal attempts
+		if len(check.HTTPPath) > 2 && (check.HTTPPath[:3] == "/.." || check.HTTPPath[len(check.HTTPPath)-3:] == "/..") {
+			return fmt.Errorf("path traversal detected in HTTP path")
+		}
+
+		// Reject control characters
+		for _, ch := range check.HTTPPath {
+			if ch < 32 || ch == 127 {
+				return fmt.Errorf("control characters not allowed in HTTP path")
+			}
+		}
+	}
+
+	// Validate TCP-specific fields
+	if check.Type == types.ProbeTypeTCP {
+		if check.Port <= 0 {
+			return fmt.Errorf("port is required for TCP probes")
+		}
+	}
+
+	// Validate Exec-specific fields
+	if check.Type == types.ProbeTypeExec {
+		if len(check.Command) == 0 {
+			return fmt.Errorf("command is required for Exec probes")
+		}
+
+		// Validate command does not contain injection attempts
+		for _, cmd := range check.Command {
+			// Reject null bytes
+			for _, ch := range cmd {
+				if ch == 0 {
+					return fmt.Errorf("null bytes not allowed in commands")
+				}
+			}
+		}
+	}
+
+	// Validate timing parameters
+	if check.InitialDelaySeconds < 0 {
+		return fmt.Errorf("initialDelaySeconds cannot be negative")
+	}
+	if check.PeriodSeconds < 0 {
+		return fmt.Errorf("periodSeconds cannot be negative")
+	}
+	if check.TimeoutSeconds < 0 {
+		return fmt.Errorf("timeoutSeconds cannot be negative")
+	}
+	if check.SuccessThreshold < 1 {
+		return fmt.Errorf("successThreshold must be at least 1")
+	}
+	if check.FailureThreshold < 1 {
+		return fmt.Errorf("failureThreshold must be at least 1")
+	}
+
+	return nil
 }
