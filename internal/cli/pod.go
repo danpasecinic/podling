@@ -123,7 +123,7 @@ var podListCmd = &cobra.Command{
 		}
 
 		// Print header
-		fmt.Printf("%-20s %-20s %-12s %-10s %s\n", "POD ID", "NAME", "NAMESPACE", "STATUS", "CONTAINERS")
+		fmt.Printf("%-25s %-20s %-12s %-10s %s\n", "POD ID", "NAME", "NAMESPACE", "STATUS", "CONTAINERS")
 		fmt.Println(strings.Repeat("-", 80))
 
 		// Print pods
@@ -139,8 +139,8 @@ var podListCmd = &cobra.Command{
 			}
 
 			fmt.Printf(
-				"%-20s %-20s %-12s %-10s %s\n",
-				truncate(pod.PodID, 20),
+				"%-25s %-20s %-12s %-10s %s\n",
+				pod.PodID,
 				truncate(pod.Name, 20),
 				truncate(namespace, 12),
 				pod.Status,
