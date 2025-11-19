@@ -69,7 +69,12 @@ func (a *Agent) Stop() {
 
 // Shutdown performs a graceful shutdown waiting for running tasks to complete.
 func (a *Agent) Shutdown(ctx context.Context) error {
-	log.Printf("shutdown initiated, waiting for %d running tasks...", len(a.runningTasks))
+	a.mu.RLock()
+	taskCount := len(a.runningTasks)
+	podCount := len(a.runningPods)
+	a.mu.RUnlock()
+
+	log.Printf("shutdown initiated, waiting for %d running tasks and %d running pods...", taskCount, podCount)
 
 	if a.heartbeatTicker != nil {
 		a.heartbeatTicker.Stop()
@@ -82,17 +87,18 @@ func (a *Agent) Shutdown(ctx context.Context) error {
 
 		for {
 			a.mu.RLock()
-			count := len(a.runningTasks)
+			taskCount := len(a.runningTasks)
+			podCount := len(a.runningPods)
 			a.mu.RUnlock()
 
-			if count == 0 {
+			if taskCount == 0 && podCount == 0 {
 				close(done)
 				return
 			}
 
 			select {
 			case <-ticker.C:
-				log.Printf("waiting for %d tasks to complete...", count)
+				log.Printf("waiting for %d tasks and %d pods to complete...", taskCount, podCount)
 			case <-ctx.Done():
 				return
 			}
@@ -101,14 +107,16 @@ func (a *Agent) Shutdown(ctx context.Context) error {
 
 	select {
 	case <-done:
-		log.Println("all tasks completed successfully")
+		log.Println("all tasks and pods completed successfully")
 	case <-ctx.Done():
 		a.mu.RLock()
-		remaining := len(a.runningTasks)
+		remainingTasks := len(a.runningTasks)
+		remainingPods := len(a.runningPods)
 		a.mu.RUnlock()
-		log.Printf("shutdown timeout reached, %d tasks still running", remaining)
+		log.Printf("shutdown timeout reached, %d tasks and %d pods still running", remainingTasks, remainingPods)
 
 		a.cleanupRunningTasks(context.Background())
+		a.cleanupRunningPods(context.Background())
 	}
 
 	if err := a.sendHeartbeat(); err != nil {
@@ -142,6 +150,39 @@ func (a *Agent) cleanupRunningTasks(ctx context.Context) {
 			}
 			if err := a.dockerClient.RemoveContainer(ctx, task.ContainerID); err != nil {
 				log.Printf("error removing container %s: %v", task.ContainerID, err)
+			}
+		}
+	}
+}
+
+// cleanupRunningPods forcefully stops and removes all containers in running pods and their networks.
+func (a *Agent) cleanupRunningPods(ctx context.Context) {
+	a.mu.Lock()
+	pods := make([]*PodExecution, 0, len(a.runningPods))
+	for _, podExec := range a.runningPods {
+		pods = append(pods, podExec)
+	}
+	a.mu.Unlock()
+
+	for _, podExec := range pods {
+		log.Printf("force stopping pod %s with %d containers", podExec.pod.PodID, len(podExec.pod.Containers))
+
+		for _, container := range podExec.pod.Containers {
+			if container.ContainerID != "" {
+				log.Printf("force stopping container %s for pod %s", container.ContainerID, podExec.pod.PodID)
+				if err := a.dockerClient.StopContainer(ctx, container.ContainerID); err != nil {
+					log.Printf("error stopping container %s: %v", container.ContainerID, err)
+				}
+				if err := a.dockerClient.RemoveContainer(ctx, container.ContainerID); err != nil {
+					log.Printf("error removing container %s: %v", container.ContainerID, err)
+				}
+			}
+		}
+
+		if podExec.networkID != "" {
+			log.Printf("removing pod network %s", podExec.networkID)
+			if err := a.dockerClient.RemovePodNetwork(ctx, podExec.networkID); err != nil {
+				log.Printf("error removing pod network %s: %v", podExec.networkID, err)
 			}
 		}
 	}
