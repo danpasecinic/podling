@@ -7,8 +7,7 @@ import (
 )
 
 var (
-	pruneAll     bool
-	pruneOffline bool
+	pruneAll bool
 )
 
 var pruneCmd = &cobra.Command{
