@@ -199,6 +199,52 @@ func (a *Agent) sendHeartbeatWithRetry() error {
 	return fmt.Errorf("heartbeat failed after %d retries: %w", maxRetries, lastErr)
 }
 
+// Register registers the worker node with the master.
+func (a *Agent) Register(hostname string, port int) error {
+	url := fmt.Sprintf("%s/api/v1/nodes/register", a.masterURL)
+
+	payload := map[string]interface{}{
+		"hostname": hostname,
+		"port":     port,
+		"cpu":      "2",
+		"memory":   "2Gi",
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal registration payload: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create registration request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send registration: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("registration returned status %d", resp.StatusCode)
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("failed to decode registration response: %w", err)
+	}
+
+	if nodeID, ok := result["nodeId"].(string); ok && nodeID != "" {
+		a.nodeID = nodeID
+		log.Printf("successfully registered with master as node %s", a.nodeID)
+	}
+
+	return nil
+}
+
 // sendHeartbeat sends a heartbeat to the master node.
 func (a *Agent) sendHeartbeat() error {
 	url := fmt.Sprintf("%s/api/v1/nodes/%s/heartbeat", a.masterURL, a.nodeID)

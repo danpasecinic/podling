@@ -21,7 +21,7 @@ func main() {
 	nodeID := flag.String("node-id", "", "Node ID (required)")
 	hostname := flag.String("hostname", "localhost", "Worker hostname")
 	port := flag.Int("port", 8081, "Worker port")
-	masterURL := flag.String("master-url", "http://localhost:8080", "Master API URL")
+	masterURL := flag.String("master-url", "http://localhost:8070", "Master API URL")
 	heartbeatInterval := flag.Duration("heartbeat-interval", 30*time.Second, "Heartbeat interval")
 	shutdownTimeout := flag.Duration("shutdown-timeout", 30*time.Second, "Graceful shutdown timeout")
 
@@ -35,6 +35,11 @@ func main() {
 		log.Fatalf("failed to create agent: %v", err)
 	}
 	defer workerAgent.Stop()
+
+	log.Printf("registering worker with master at %s", *masterURL)
+	if err := workerAgent.Register(*hostname, *port); err != nil {
+		log.Fatalf("failed to register with master: %v", err)
+	}
 
 	workerAgent.Start(*heartbeatInterval)
 
