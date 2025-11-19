@@ -10,11 +10,19 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 )
 
 // Client wraps Docker SDK functionality for container management.
 type Client struct {
 	cli *client.Client
+}
+
+// PortMapping represents a mapping between container and host ports.
+type PortMapping struct {
+	ContainerPort int
+	HostPort      int
+	Protocol      string
 }
 
 // NewClient creates a new Docker client.
@@ -328,6 +336,63 @@ func (c *Client) CreateContainerInNetworkWithResources(
 	}
 
 	hostConfig := &container.HostConfig{}
+
+	if cpuQuota > 0 {
+		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)
+	}
+
+	if memoryLimit > 0 {
+		hostConfig.Memory = memoryLimit
+	}
+
+	networkingConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			networkID: {},
+		},
+	}
+
+	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, networkingConfig, nil, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w", err)
+	}
+
+	return resp.ID, nil
+}
+
+// CreateContainerInNetworkWithResourcesAndPorts creates a container with resource limits and port mappings in a specific network
+func (c *Client) CreateContainerInNetworkWithResourcesAndPorts(
+	ctx context.Context, imageName string, env []string, networkID string,
+	cpuQuota float64, memoryLimit int64, ports []PortMapping,
+) (string, error) {
+	exposedPorts := nat.PortSet{}
+	portBindings := nat.PortMap{}
+
+	for _, portMapping := range ports {
+		protocol := portMapping.Protocol
+		if protocol == "" {
+			protocol = "tcp"
+		}
+
+		containerPort := nat.Port(fmt.Sprintf("%d/%s", portMapping.ContainerPort, protocol))
+		exposedPorts[containerPort] = struct{}{}
+
+		portBindings[containerPort] = []nat.PortBinding{
+			{
+				HostIP:   "0.0.0.0",
+				HostPort: fmt.Sprintf("%d", portMapping.HostPort),
+			},
+		}
+	}
+
+	config := &container.Config{
+		Image:        imageName,
+		Env:          env,
+		ExposedPorts: exposedPorts,
+	}
+
+	hostConfig := &container.HostConfig{
+		PortBindings: portBindings,
+	}
 
 	if cpuQuota > 0 {
 		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)

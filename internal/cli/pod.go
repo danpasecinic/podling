@@ -19,6 +19,7 @@ var (
 	podCreateNamespace  string
 	podCreateLabels     []string
 	podCreateContainers []string
+	podCreatePorts      []string
 )
 
 var podCreateCmd = &cobra.Command{
@@ -30,10 +31,15 @@ Examples:
   # Create a pod with a single nginx container
   podling pod create my-web --container nginx:nginx:latest
 
-  # Create a pod with multiple containers
+  # Create a pod with port mapping
+  podling pod create my-web --container nginx:nginx:latest --port 8080:80
+
+  # Create a pod with multiple containers and multiple ports
   podling pod create my-app \
     --container app:myapp:1.0 \
-    --container sidecar:logging:latest
+    --container sidecar:logging:latest \
+    --port app:8080:80 \
+    --port sidecar:9090:9090
 
   # Create a pod with labels and namespace
   podling pod create my-app \
@@ -43,6 +49,7 @@ Examples:
     --container app:myapp:1.0
 
 Container format: name:image[:env1=val1,env2=val2]
+Port format: [containerName:]hostPort:containerPort
 `,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -69,6 +76,10 @@ Container format: name:image[:env1=val1,env2=val2]
 				return fmt.Errorf("invalid container spec %q: %w", containerSpec, err)
 			}
 			containers = append(containers, container)
+		}
+
+		if err := applyPortMappings(containers, podCreatePorts); err != nil {
+			return fmt.Errorf("failed to apply port mappings: %w", err)
 		}
 
 		client := NewClient(GetMasterURL())
@@ -260,6 +271,9 @@ func init() {
 	podCreateCmd.Flags().StringArrayVarP(
 		&podCreateContainers, "container", "c", []string{}, "container spec (name:image[:env1=val1,env2=val2])",
 	)
+	podCreateCmd.Flags().StringArrayVarP(
+		&podCreatePorts, "port", "p", []string{}, "port mapping ([containerName:]hostPort:containerPort)",
+	)
 }
 
 // parseContainerSpec parses a container specification string
@@ -362,6 +376,7 @@ Examples:
 	},
 }
 
+// Initialize pod logs command flags
 func init() {
 	podLogsCmd.Flags().StringVarP(&podLogsContainer, "container", "c", "", "specific container name")
 	podLogsCmd.Flags().IntVarP(&podLogsTail, "tail", "t", 100, "number of lines to show from the end of logs")
@@ -376,4 +391,65 @@ func truncate(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// applyPortMappings applies port mappings to the specified containers
+func applyPortMappings(containers []types.Container, portSpecs []string) error {
+	for _, portSpec := range portSpecs {
+		parts := strings.Split(portSpec, ":")
+
+		var containerName string
+		var hostPort, containerPort int
+		var err error
+
+		if len(parts) == 2 {
+			if len(containers) != 1 {
+				return fmt.Errorf(
+					"port spec %q missing container name (required when pod has multiple containers)", portSpec,
+				)
+			}
+			containerName = containers[0].Name
+			_, err = fmt.Sscanf(parts[0], "%d", &hostPort)
+			if err != nil {
+				return fmt.Errorf("invalid host port in %q: %w", portSpec, err)
+			}
+			_, err = fmt.Sscanf(parts[1], "%d", &containerPort)
+			if err != nil {
+				return fmt.Errorf("invalid container port in %q: %w", portSpec, err)
+			}
+		} else if len(parts) == 3 {
+			containerName = parts[0]
+			_, err = fmt.Sscanf(parts[1], "%d", &hostPort)
+			if err != nil {
+				return fmt.Errorf("invalid host port in %q: %w", portSpec, err)
+			}
+			_, err = fmt.Sscanf(parts[2], "%d", &containerPort)
+			if err != nil {
+				return fmt.Errorf("invalid container port in %q: %w", portSpec, err)
+			}
+		} else {
+			return fmt.Errorf("invalid port spec %q (expected [containerName:]hostPort:containerPort)", portSpec)
+		}
+
+		found := false
+		for i := range containers {
+			if containers[i].Name == containerName {
+				containers[i].Ports = append(
+					containers[i].Ports, types.ContainerPort{
+						ContainerPort: containerPort,
+						HostPort:      hostPort,
+						Protocol:      "TCP",
+					},
+				)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("container %q not found for port mapping %q", containerName, portSpec)
+		}
+	}
+
+	return nil
 }

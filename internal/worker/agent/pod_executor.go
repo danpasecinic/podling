@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/danpasecinic/podling/internal/types"
+	"github.com/danpasecinic/podling/internal/worker/docker"
 	"github.com/danpasecinic/podling/internal/worker/health"
 )
 
@@ -181,13 +182,33 @@ func (a *Agent) createPodContainers(ctx context.Context, pod *types.Pod, executi
 func (a *Agent) createContainer(
 	ctx context.Context, container *types.Container, env []string, networkID string,
 ) (string, error) {
+	cpuLimit := container.Resources.Limits.GetCPULimitForDocker()
+	memoryLimit := container.Resources.Limits.GetMemoryLimitForDocker()
+
+	if len(container.Ports) > 0 {
+		ports := make([]docker.PortMapping, len(container.Ports))
+		for i, port := range container.Ports {
+			protocol := port.Protocol
+			if protocol == "" {
+				protocol = "tcp"
+			}
+			ports[i] = docker.PortMapping{
+				ContainerPort: port.ContainerPort,
+				HostPort:      port.HostPort,
+				Protocol:      protocol,
+			}
+		}
+		return a.dockerClient.CreateContainerInNetworkWithResourcesAndPorts(
+			ctx, container.Image, env, networkID, cpuLimit, memoryLimit, ports,
+		)
+	}
+
 	if !container.Resources.Limits.IsZero() {
-		cpuLimit := container.Resources.Limits.GetCPULimitForDocker()
-		memoryLimit := container.Resources.Limits.GetMemoryLimitForDocker()
 		return a.dockerClient.CreateContainerInNetworkWithResources(
 			ctx, container.Image, env, networkID, cpuLimit, memoryLimit,
 		)
 	}
+
 	return a.dockerClient.CreateContainerInNetwork(ctx, container.Image, env, networkID)
 }
 
