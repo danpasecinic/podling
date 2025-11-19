@@ -475,3 +475,50 @@ func (c *Client) DeleteService(serviceID string) error {
 
 	return nil
 }
+
+// Prune removes unused resources and returns a summary of the operation
+func (c *Client) Prune() (*types.PruneResult, error) {
+	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v1/prune", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("prune request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result types.PruneResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// PruneAll removes all resources from the system
+func (c *Client) PruneAll() error {
+	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v1/prune?all=true", nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("prune request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}

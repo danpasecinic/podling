@@ -61,6 +61,9 @@ func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1.PUT("/services/:id", s.UpdateService)
 	v1.DELETE("/services/:id", s.DeleteService)
 	v1.GET("/services/:id/endpoints", s.GetEndpoints)
+
+	// Maintenance routes
+	v1.POST("/prune", s.Prune)
 }
 
 // StartNodeExpirationChecker runs a background job to mark stale nodes as offline
