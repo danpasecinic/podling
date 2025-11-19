@@ -590,16 +590,22 @@ func (s *PostgresStore) ListPods() ([]types.Pod, error) {
 			return nil, fmt.Errorf("failed to scan pod: %w", err)
 		}
 
-		if len(labelsJSON) > 0 {
+		if len(labelsJSON) > 0 && string(labelsJSON) != "null" {
+			pod.Labels = make(map[string]string)
 			if err := json.Unmarshal(labelsJSON, &pod.Labels); err != nil {
 				return nil, fmt.Errorf("failed to unmarshal labels: %w", err)
 			}
+		} else {
+			pod.Labels = make(map[string]string)
 		}
 
-		if len(annotationsJSON) > 0 {
+		if len(annotationsJSON) > 0 && string(annotationsJSON) != "null" {
+			pod.Annotations = make(map[string]string)
 			if err := json.Unmarshal(annotationsJSON, &pod.Annotations); err != nil {
 				return nil, fmt.Errorf("failed to unmarshal annotations: %w", err)
 			}
+		} else {
+			pod.Annotations = make(map[string]string)
 		}
 
 		if err := json.Unmarshal(containersJSON, &pod.Containers); err != nil {
