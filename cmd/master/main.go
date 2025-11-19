@@ -45,6 +45,8 @@ func main() {
 
 	server := api.NewServer(store, sched, endpointController)
 
+	go server.StartNodeExpirationChecker(ctx)
+
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())

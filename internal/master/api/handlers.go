@@ -219,11 +219,20 @@ func (s *Server) NodeHeartbeat(c echo.Context) error {
 }
 
 // ListNodes handles GET /api/v1/nodes.
-// Returns all registered worker nodes.
+// Returns all registered worker nodes with updated status based on heartbeat.
 func (s *Server) ListNodes(c echo.Context) error {
 	nodes, err := s.store.ListNodes()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	now := time.Now()
+	heartbeatTimeout := 90 * time.Second
+
+	for i := range nodes {
+		if nodes[i].LastHeartbeat.Add(heartbeatTimeout).Before(now) {
+			nodes[i].Status = types.NodeOffline
+		}
 	}
 
 	return c.JSON(http.StatusOK, nodes)
