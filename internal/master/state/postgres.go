@@ -444,9 +444,15 @@ func (s *PostgresStore) GetPod(podID string) (types.Pod, error) {
 		}
 	}
 
+	pod.Annotations = make(map[string]string)
 	if len(annotationsJSON) > 0 {
-		if err := json.Unmarshal(annotationsJSON, &pod.Annotations); err != nil {
-			return types.Pod{}, fmt.Errorf("failed to unmarshal annotations: %w", err)
+		var testArray []interface{}
+		if json.Unmarshal(annotationsJSON, &testArray) == nil {
+			pod.Annotations = make(map[string]string)
+		} else {
+			if err := json.Unmarshal(annotationsJSON, &pod.Annotations); err != nil {
+				return types.Pod{}, fmt.Errorf("failed to unmarshal annotations: %w", err)
+			}
 		}
 	}
 
@@ -530,7 +536,10 @@ func (s *PostgresStore) UpdatePod(podID string, updates PodUpdate) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal annotations: %w", err)
 		}
-		query += fmt.Sprintf("annotations = CASE WHEN annotations IS NULL OR jsonb_typeof(annotations) = 'array' THEN '{}'::jsonb ELSE annotations END || $%d, ", argPos)
+		query += fmt.Sprintf(
+			"annotations = COALESCE(CASE WHEN jsonb_typeof(annotations) = 'array' THEN '{}'::jsonb ELSE annotations END, '{}'::jsonb) || $%d, ",
+			argPos,
+		)
 		args = append(args, annotationsJSON)
 		argPos++
 	}
@@ -599,13 +608,16 @@ func (s *PostgresStore) ListPods() ([]types.Pod, error) {
 			pod.Labels = make(map[string]string)
 		}
 
+		pod.Annotations = make(map[string]string)
 		if len(annotationsJSON) > 0 && string(annotationsJSON) != "null" {
-			pod.Annotations = make(map[string]string)
-			if err := json.Unmarshal(annotationsJSON, &pod.Annotations); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal annotations: %w", err)
+			var testArray []interface{}
+			if json.Unmarshal(annotationsJSON, &testArray) == nil {
+				pod.Annotations = make(map[string]string)
+			} else {
+				if err := json.Unmarshal(annotationsJSON, &pod.Annotations); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal annotations: %w", err)
+				}
 			}
-		} else {
-			pod.Annotations = make(map[string]string)
 		}
 
 		if err := json.Unmarshal(containersJSON, &pod.Containers); err != nil {
@@ -1447,8 +1459,16 @@ func (s *PostgresStore) ListPodsByLabels(namespace string, labels map[string]str
 		if err := json.Unmarshal(labelsJSON, &pod.Labels); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal labels: %w", err)
 		}
-		if err := json.Unmarshal(annotationsJSON, &pod.Annotations); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal annotations: %w", err)
+		pod.Annotations = make(map[string]string)
+		if len(annotationsJSON) > 0 {
+			var testArray []interface{}
+			if json.Unmarshal(annotationsJSON, &testArray) == nil {
+				pod.Annotations = make(map[string]string)
+			} else {
+				if err := json.Unmarshal(annotationsJSON, &pod.Annotations); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal annotations: %w", err)
+				}
+			}
 		}
 		if err := json.Unmarshal(containersJSON, &pod.Containers); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal containers: %w", err)
