@@ -262,31 +262,19 @@ func init() {
 }
 
 // parseContainerSpec parses a container specification string
-// Format: name:image[:tag][:env1=val1,env2=val2]
+// Format: name:image[:env1=val1,env2=val2]
 func parseContainerSpec(spec string) (types.Container, error) {
-	firstColon := strings.Index(spec, ":")
-	if firstColon == -1 {
-		return types.Container{}, fmt.Errorf("container spec must be in format 'name:image[:tag][:env]'")
+	parts := strings.Split(spec, ":")
+	if len(parts) < 2 {
+		return types.Container{}, fmt.Errorf("container spec must be in format 'name:image[:env]'")
 	}
 
-	name := spec[:firstColon]
-	rest := spec[firstColon+1:]
+	name := parts[0]
+	image := parts[1]
 
 	if name == "" {
 		return types.Container{}, fmt.Errorf("container name cannot be empty")
 	}
-
-	image := ""
-	envStr := ""
-
-	lastColon := strings.LastIndex(rest, ":")
-	if lastColon != -1 && strings.Contains(rest[lastColon+1:], "=") {
-		image = rest[:lastColon]
-		envStr = rest[lastColon+1:]
-	} else {
-		image = rest
-	}
-
 	if image == "" {
 		return types.Container{}, fmt.Errorf("container image cannot be empty")
 	}
@@ -297,7 +285,9 @@ func parseContainerSpec(spec string) (types.Container, error) {
 		Env:   make(map[string]string),
 	}
 
-	if envStr != "" {
+	// Parse environment variables if provided
+	if len(parts) > 2 {
+		envStr := strings.Join(parts[2:], ":")
 		envPairs := strings.Split(envStr, ",")
 		for _, pair := range envPairs {
 			if pair == "" {
