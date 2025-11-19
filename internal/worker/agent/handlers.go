@@ -181,3 +181,82 @@ func validateHealthCheck(check *types.HealthCheck) error {
 
 	return nil
 }
+
+// ExecutePodRequest represents a pod execution request.
+type ExecutePodRequest struct {
+	Pod types.Pod `json:"pod"`
+}
+
+// ExecutePod handles POST /api/v1/pods/:id/execute
+// Executes a pod (all its containers) on this worker.
+func (s *Server) ExecutePod(c echo.Context) error {
+	podID := c.Param("id")
+
+	var req ExecutePodRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+
+	if req.Pod.PodID != podID {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "pod ID mismatch"})
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
+		if err := s.agent.ExecutePod(ctx, &req.Pod); err != nil {
+			c.Logger().Errorf("pod execution failed: %v", err)
+		}
+	}()
+
+	return c.JSON(
+		http.StatusAccepted, map[string]string{
+			"message": "pod execution started",
+			"podId":   podID,
+		},
+	)
+}
+
+// GetPodStatus handles GET /api/v1/pods/:id/status
+// Returns the current status of a running pod.
+func (s *Server) GetPodStatus(c echo.Context) error {
+	podID := c.Param("id")
+
+	pod, ok := s.agent.GetPod(podID)
+	if !ok {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "pod not found"})
+	}
+
+	return c.JSON(http.StatusOK, pod)
+}
+
+// GetPodLogs handles GET /api/v1/pods/:id/logs
+// Returns logs from containers in a pod.
+func (s *Server) GetPodLogs(c echo.Context) error {
+	podID := c.Param("id")
+	containerName := c.QueryParam("container")
+	tail := 100
+
+	if tailParam := c.QueryParam("tail"); tailParam != "" {
+		if n, err := fmt.Sscanf(tailParam, "%d", &tail); err != nil || n != 1 {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid tail parameter"})
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	logs, err := s.agent.GetPodLogs(ctx, podID, containerName, tail)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(
+		http.StatusOK, map[string]interface{}{
+			"podId": podID,
+			"logs":  logs,
+			"tail":  tail,
+		},
+	)
+}

@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -212,5 +215,42 @@ func (s *Server) schedulePod(podID string) error {
 		ScheduledAt: &now,
 	}
 
-	return s.store.UpdatePod(podID, update)
+	if err := s.store.UpdatePod(podID, update); err != nil {
+		return err
+	}
+
+	go s.triggerPodExecution(podID, *selectedNode)
+
+	return nil
+}
+
+func (s *Server) triggerPodExecution(podID string, node types.Node) {
+	pod, err := s.store.GetPod(podID)
+	if err != nil {
+		return
+	}
+
+	url := fmt.Sprintf("http://%s:%d/api/v1/pods/%s/execute", node.Hostname, node.Port, podID)
+
+	payload := map[string]interface{}{
+		"pod": pod,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
 }

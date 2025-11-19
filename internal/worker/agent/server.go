@@ -29,4 +29,8 @@ func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1.POST("/tasks/:id/execute", s.ExecuteTask)
 	v1.GET("/tasks/:id/status", s.GetTaskStatus)
 	v1.GET("/tasks/:id/logs", s.GetTaskLogs)
+
+	v1.POST("/pods/:id/execute", s.ExecutePod)
+	v1.GET("/pods/:id/status", s.GetPodStatus)
+	v1.GET("/pods/:id/logs", s.GetPodLogs)
 }

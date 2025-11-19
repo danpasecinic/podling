@@ -253,6 +253,7 @@ func init() {
 	podCmd.AddCommand(podListCmd)
 	podCmd.AddCommand(podGetCmd)
 	podCmd.AddCommand(podDeleteCmd)
+	podCmd.AddCommand(podLogsCmd)
 
 	podCreateCmd.Flags().StringVar(&podCreateNamespace, "namespace", "default", "pod namespace")
 	podCreateCmd.Flags().StringArrayVarP(&podCreateLabels, "label", "l", []string{}, "pod labels (key=value)")
@@ -312,6 +313,58 @@ func parseContainerSpec(spec string) (types.Container, error) {
 	}
 
 	return container, nil
+}
+
+// Pod logs command
+var (
+	podLogsContainer string
+	podLogsTail      int
+)
+
+var podLogsCmd = &cobra.Command{
+	Use:   "logs [pod-id]",
+	Short: "Get logs from a pod's containers",
+	Long: `Get logs from one or all containers in a pod.
+
+Examples:
+  # Get logs from all containers in a pod
+  podling pod logs <pod-id>
+
+  # Get logs from a specific container
+  podling pod logs <pod-id> --container web
+
+  # Get last 50 lines
+  podling pod logs <pod-id> --tail 50
+`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		podID := args[0]
+
+		client := NewClient(GetMasterURL())
+		logs, err := client.GetPodLogs(podID, podLogsContainer, podLogsTail)
+		if err != nil {
+			return fmt.Errorf("failed to get pod logs: %w", err)
+		}
+
+		if podLogsContainer != "" {
+			if log, ok := logs[podLogsContainer]; ok {
+				fmt.Printf("==> Container: %s <==\n%s\n", podLogsContainer, log)
+			} else {
+				return fmt.Errorf("container %s not found", podLogsContainer)
+			}
+		} else {
+			for containerName, log := range logs {
+				fmt.Printf("==> Container: %s <==\n%s\n\n", containerName, log)
+			}
+		}
+
+		return nil
+	},
+}
+
+func init() {
+	podLogsCmd.Flags().StringVarP(&podLogsContainer, "container", "c", "", "specific container name")
+	podLogsCmd.Flags().IntVarP(&podLogsTail, "tail", "t", 100, "number of lines to show from the end of logs")
 }
 
 // truncate truncates a string to the specified length

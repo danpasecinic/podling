@@ -120,6 +120,22 @@ func (c *Client) ListNodes() ([]types.Node, error) {
 	return nodes, nil
 }
 
+// GetNode retrieves a specific node by ID
+func (c *Client) GetNode(nodeID string) (*types.Node, error) {
+	nodes, err := c.ListNodes()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, node := range nodes {
+		if node.NodeID == nodeID {
+			return &node, nil
+		}
+	}
+
+	return nil, fmt.Errorf("node %s not found", nodeID)
+}
+
 func (c *Client) GetTaskLogs(task *types.Task, tail int) (string, error) {
 	// Get the node to find the worker URL
 	nodes, err := c.ListNodes()
@@ -251,6 +267,48 @@ func (c *Client) GetPod(podID string) (*types.Pod, error) {
 	}
 
 	return &pod, nil
+}
+
+// GetPodLogs retrieves logs from a pod's containers
+func (c *Client) GetPodLogs(podID string, containerName string, tail int) (map[string]string, error) {
+	pod, err := c.GetPod(podID)
+	if err != nil {
+		return nil, err
+	}
+
+	if pod.NodeID == "" {
+		return nil, fmt.Errorf("pod is not scheduled to any node")
+	}
+
+	node, err := c.GetNode(pod.NodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node info: %w", err)
+	}
+
+	url := fmt.Sprintf("http://%s:%d/api/v1/pods/%s/logs?tail=%d", node.Hostname, node.Port, podID, tail)
+	if containerName != "" {
+		url += "&container=" + containerName
+	}
+
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("get request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Logs map[string]string `json:"logs"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return result.Logs, nil
 }
 
 // DeletePod deletes a pod by ID

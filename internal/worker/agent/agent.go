@@ -416,8 +416,6 @@ func (a *Agent) handleUnhealthyContainer(taskID string) {
 
 	if restartPolicy == types.RestartPolicyAlways || restartPolicy == types.RestartPolicyOnFailure {
 		log.Printf("[health] container restart not yet implemented - would restart task %s", taskID)
-		// TODO: Implement container restart logic
-		// This requires careful coordination with the main ExecuteTask goroutine
 	}
 
 	if err := a.updateTaskStatus(
@@ -489,4 +487,61 @@ func (a *Agent) GetTaskLogs(ctx context.Context, taskID string, tail int) (strin
 	}
 
 	return a.dockerClient.GetContainerLogs(ctx, task.ContainerID, tail)
+}
+
+// GetPod retrieves a running pod by ID.
+func (a *Agent) GetPod(podID string) (*types.Pod, bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	podExec, ok := a.runningPods[podID]
+	if !ok {
+		return nil, false
+	}
+	return podExec.pod, true
+}
+
+// GetPodLogs retrieves logs from all containers in a pod.
+func (a *Agent) GetPodLogs(ctx context.Context, podID string, containerName string, tail int) (
+	map[string]string,
+	error,
+) {
+	a.mu.RLock()
+	podExec, ok := a.runningPods[podID]
+	a.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("pod %s not found or not running", podID)
+	}
+
+	logs := make(map[string]string)
+
+	podExec.mu.RLock()
+	containerIDs := make(map[string]string)
+	for name, id := range podExec.containerIDs {
+		containerIDs[name] = id
+	}
+	podExec.mu.RUnlock()
+
+	if containerName != "" {
+		containerID, ok := containerIDs[containerName]
+		if !ok {
+			return nil, fmt.Errorf("container %s not found in pod %s", containerName, podID)
+		}
+		containerLogs, err := a.dockerClient.GetContainerLogs(ctx, containerID, tail)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get logs for container %s: %w", containerName, err)
+		}
+		logs[containerName] = containerLogs
+	} else {
+		for name, containerID := range containerIDs {
+			containerLogs, err := a.dockerClient.GetContainerLogs(ctx, containerID, tail)
+			if err != nil {
+				logs[name] = fmt.Sprintf("Error: %v", err)
+			} else {
+				logs[name] = containerLogs
+			}
+		}
+	}
+
+	return logs, nil
 }
