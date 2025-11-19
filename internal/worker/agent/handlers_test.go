@@ -213,3 +213,307 @@ func TestExecuteTaskInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestValidateHealthCheck(t *testing.T) {
+	tests := []struct {
+		name    string
+		check   *types.HealthCheck
+		wantErr bool
+	}{
+		{
+			name:    "nil check",
+			check:   nil,
+			wantErr: false,
+		},
+		{
+			name: "valid HTTP probe",
+			check: &types.HealthCheck{
+				Type:             types.ProbeTypeHTTP,
+				HTTPPath:         "/health",
+				Port:             8080,
+				SuccessThreshold: 1,
+				FailureThreshold: 3,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid TCP probe",
+			check: &types.HealthCheck{
+				Type:             types.ProbeTypeTCP,
+				Port:             3306,
+				SuccessThreshold: 1,
+				FailureThreshold: 3,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid Exec probe",
+			check: &types.HealthCheck{
+				Type:             types.ProbeTypeExec,
+				Command:          []string{"cat", "/tmp/healthy"},
+				SuccessThreshold: 1,
+				FailureThreshold: 3,
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid port - negative",
+			check: &types.HealthCheck{
+				Type: types.ProbeTypeTCP,
+				Port: -1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid port - too high",
+			check: &types.HealthCheck{
+				Type: types.ProbeTypeTCP,
+				Port: 65536,
+			},
+			wantErr: true,
+		},
+		{
+			name: "HTTP probe without path",
+			check: &types.HealthCheck{
+				Type: types.ProbeTypeHTTP,
+				Port: 8080,
+			},
+			wantErr: true,
+		},
+		{
+			name: "HTTP probe with invalid path - no leading slash",
+			check: &types.HealthCheck{
+				Type:     types.ProbeTypeHTTP,
+				HTTPPath: "health",
+				Port:     8080,
+			},
+			wantErr: true,
+		},
+		{
+			name: "HTTP probe with path traversal - beginning",
+			check: &types.HealthCheck{
+				Type:     types.ProbeTypeHTTP,
+				HTTPPath: "/../etc/passwd",
+				Port:     8080,
+			},
+			wantErr: true,
+		},
+		{
+			name: "HTTP probe with path traversal - end",
+			check: &types.HealthCheck{
+				Type:     types.ProbeTypeHTTP,
+				HTTPPath: "/health/..",
+				Port:     8080,
+			},
+			wantErr: true,
+		},
+		{
+			name: "HTTP probe with control characters",
+			check: &types.HealthCheck{
+				Type:     types.ProbeTypeHTTP,
+				HTTPPath: "/health\x00",
+				Port:     8080,
+			},
+			wantErr: true,
+		},
+		{
+			name: "TCP probe without port",
+			check: &types.HealthCheck{
+				Type: types.ProbeTypeTCP,
+				Port: 0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Exec probe without command",
+			check: &types.HealthCheck{
+				Type:    types.ProbeTypeExec,
+				Command: []string{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Exec probe with null byte in command",
+			check: &types.HealthCheck{
+				Type:    types.ProbeTypeExec,
+				Command: []string{"cat\x00/etc/passwd"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative initialDelaySeconds",
+			check: &types.HealthCheck{
+				Type:                types.ProbeTypeTCP,
+				Port:                8080,
+				InitialDelaySeconds: -5,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative periodSeconds",
+			check: &types.HealthCheck{
+				Type:          types.ProbeTypeTCP,
+				Port:          8080,
+				PeriodSeconds: -10,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative timeoutSeconds",
+			check: &types.HealthCheck{
+				Type:           types.ProbeTypeTCP,
+				Port:           8080,
+				TimeoutSeconds: -3,
+			},
+			wantErr: true,
+		},
+		{
+			name: "successThreshold less than 1",
+			check: &types.HealthCheck{
+				Type:             types.ProbeTypeTCP,
+				Port:             8080,
+				SuccessThreshold: 0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "failureThreshold less than 1",
+			check: &types.HealthCheck{
+				Type:             types.ProbeTypeTCP,
+				Port:             8080,
+				FailureThreshold: 0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid health check with all timing parameters",
+			check: &types.HealthCheck{
+				Type:                types.ProbeTypeTCP,
+				Port:                8080,
+				InitialDelaySeconds: 10,
+				PeriodSeconds:       5,
+				TimeoutSeconds:      3,
+				SuccessThreshold:    1,
+				FailureThreshold:    3,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				err := validateHealthCheck(tt.check)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("validateHealthCheck() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			},
+		)
+	}
+}
+
+func TestExecuteTask_WithHealthChecks(t *testing.T) {
+	agent, _ := NewAgent("test-node", "http://localhost:8080")
+	defer agent.Stop()
+
+	server := NewServer("test-node", "localhost", 8081, agent)
+	e := echo.New()
+	server.RegisterRoutes(e)
+
+	tests := []struct {
+		name           string
+		livenessProbe  *types.HealthCheck
+		readinessProbe *types.HealthCheck
+		expectedStatus int
+	}{
+		{
+			name: "valid liveness probe",
+			livenessProbe: &types.HealthCheck{
+				Type:             types.ProbeTypeHTTP,
+				HTTPPath:         "/health",
+				Port:             8080,
+				SuccessThreshold: 1,
+				FailureThreshold: 3,
+			},
+			expectedStatus: http.StatusAccepted,
+		},
+		{
+			name: "invalid liveness probe - path traversal",
+			livenessProbe: &types.HealthCheck{
+				Type:     types.ProbeTypeHTTP,
+				HTTPPath: "/../etc/passwd",
+				Port:     8080,
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "valid readiness probe",
+			readinessProbe: &types.HealthCheck{
+				Type:             types.ProbeTypeHTTP,
+				HTTPPath:         "/ready",
+				Port:             8080,
+				SuccessThreshold: 1,
+				FailureThreshold: 3,
+			},
+			expectedStatus: http.StatusAccepted,
+		},
+		{
+			name: "invalid readiness probe - control characters",
+			readinessProbe: &types.HealthCheck{
+				Type:     types.ProbeTypeHTTP,
+				HTTPPath: "/health\x00",
+				Port:     8080,
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "both probes valid",
+			livenessProbe: &types.HealthCheck{
+				Type:             types.ProbeTypeHTTP,
+				HTTPPath:         "/health",
+				Port:             8080,
+				SuccessThreshold: 1,
+				FailureThreshold: 3,
+			},
+			readinessProbe: &types.HealthCheck{
+				Type:             types.ProbeTypeTCP,
+				Port:             3306,
+				SuccessThreshold: 1,
+				FailureThreshold: 3,
+			},
+			expectedStatus: http.StatusAccepted,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				task := types.Task{
+					TaskID:         "task-1",
+					Name:           "test",
+					Image:          "alpine",
+					Status:         types.TaskPending,
+					LivenessProbe:  tt.livenessProbe,
+					ReadinessProbe: tt.readinessProbe,
+				}
+
+				reqBody := ExecuteTaskRequest{Task: task}
+				body, _ := json.Marshal(reqBody)
+
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/task-1/execute", bytes.NewReader(body))
+				req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+				rec := httptest.NewRecorder()
+				c := e.NewContext(req, rec)
+				c.SetParamNames("id")
+				c.SetParamValues("task-1")
+
+				if err := server.ExecuteTask(c); err != nil {
+					t.Fatalf("handler returned error: %v", err)
+				}
+
+				if rec.Code != tt.expectedStatus {
+					t.Errorf("expected status %d, got %d. Body: %s", tt.expectedStatus, rec.Code, rec.Body.String())
+				}
+			},
+		)
+	}
+}
