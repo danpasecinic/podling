@@ -218,6 +218,22 @@ func (s *Server) NodeHeartbeat(c echo.Context) error {
 	return c.JSON(http.StatusOK, node)
 }
 
+// NodeDeregister handles POST /api/v1/nodes/:id/deregister.
+// Marks a worker node as offline during graceful shutdown.
+func (s *Server) NodeDeregister(c echo.Context) error {
+	nodeID := c.Param("id")
+
+	update := state.NodeUpdate{
+		Status: ptrTo(types.NodeOffline),
+	}
+
+	if err := s.store.UpdateNode(nodeID, update); err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "node not found"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "node deregistered successfully"})
+}
+
 // ListNodes handles GET /api/v1/nodes.
 // Returns all registered worker nodes with updated status based on heartbeat.
 func (s *Server) ListNodes(c echo.Context) error {

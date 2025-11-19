@@ -51,6 +51,7 @@ func (s *Server) RegisterRoutes(e *echo.Echo) {
 	// Node routes
 	v1.POST("/nodes/register", s.RegisterNode)
 	v1.POST("/nodes/:id/heartbeat", s.NodeHeartbeat)
+	v1.POST("/nodes/:id/deregister", s.NodeDeregister)
 	v1.GET("/nodes", s.ListNodes)
 
 	// Service routes

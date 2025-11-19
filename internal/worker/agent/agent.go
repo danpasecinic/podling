@@ -119,8 +119,8 @@ func (a *Agent) Shutdown(ctx context.Context) error {
 		a.cleanupRunningPods(context.Background())
 	}
 
-	if err := a.sendHeartbeat(); err != nil {
-		log.Printf("failed to send final heartbeat: %v", err)
+	if err := a.deregister(); err != nil {
+		log.Printf("failed to deregister node: %v", err)
 	}
 
 	close(a.stopChan)
@@ -305,6 +305,30 @@ func (a *Agent) sendHeartbeat() error {
 		return fmt.Errorf("heartbeat returned status %d", resp.StatusCode)
 	}
 
+	return nil
+}
+
+// deregister removes the worker node from the master.
+func (a *Agent) deregister() error {
+	log.Printf("deregistering node %s from master", a.nodeID)
+	url := fmt.Sprintf("%s/api/v1/nodes/%s/deregister", a.masterURL, a.nodeID)
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create deregister request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to deregister: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("deregister returned status %d", resp.StatusCode)
+	}
+
+	log.Printf("node %s deregistered successfully", a.nodeID)
 	return nil
 }
 
