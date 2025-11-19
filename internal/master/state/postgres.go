@@ -530,7 +530,7 @@ func (s *PostgresStore) UpdatePod(podID string, updates PodUpdate) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal annotations: %w", err)
 		}
-		query += fmt.Sprintf("annotations = COALESCE(annotations, '{}'::jsonb) || $%d, ", argPos)
+		query += fmt.Sprintf("annotations = CASE WHEN annotations IS NULL OR jsonb_typeof(annotations) = 'array' THEN '{}'::jsonb ELSE annotations END || $%d, ", argPos)
 		args = append(args, annotationsJSON)
 		argPos++
 	}
@@ -919,7 +919,8 @@ func (s *PostgresStore) AddService(service types.Service) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
-	_, err = s.db.Exec(query,
+	_, err = s.db.Exec(
+		query,
 		service.ServiceID,
 		service.Name,
 		nullString(service.Namespace),
@@ -1253,7 +1254,8 @@ func (s *PostgresStore) SetEndpoints(endpoints types.Endpoints) error {
 		SET subsets = EXCLUDED.subsets, updated_at = NOW()
 	`
 
-	_, err = s.db.Exec(query,
+	_, err = s.db.Exec(
+		query,
 		endpoints.ServiceID,
 		endpoints.ServiceName,
 		nullString(endpoints.Namespace),
