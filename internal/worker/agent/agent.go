@@ -360,10 +360,29 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// Create container with resource limits if specified
+	// Create container with resource limits and ports if specified
 	var containerID string
 	var err error
-	if !task.Resources.Limits.IsZero() {
+
+	if len(task.Ports) > 0 {
+		ports := make([]docker.PortMapping, len(task.Ports))
+		for i, port := range task.Ports {
+			ports[i] = docker.PortMapping{
+				ContainerPort: port.ContainerPort,
+				HostPort:      port.HostPort,
+				Protocol:      port.Protocol,
+			}
+		}
+
+		cpuLimit := float64(0)
+		memoryLimit := int64(0)
+		if !task.Resources.Limits.IsZero() {
+			cpuLimit = task.Resources.Limits.GetCPULimitForDocker()
+			memoryLimit = task.Resources.Limits.GetMemoryLimitForDocker()
+		}
+
+		containerID, err = a.dockerClient.CreateContainerWithResourcesAndPorts(ctx, task.Image, env, cpuLimit, memoryLimit, ports)
+	} else if !task.Resources.Limits.IsZero() {
 		cpuLimit := task.Resources.Limits.GetCPULimitForDocker()
 		memoryLimit := task.Resources.Limits.GetMemoryLimitForDocker()
 		containerID, err = a.dockerClient.CreateContainerWithResources(ctx, task.Image, env, cpuLimit, memoryLimit)
@@ -539,12 +558,18 @@ func (a *Agent) GetTask(taskID string) (*types.Task, bool) {
 
 // GetTaskLogs retrieves container logs for a task.
 func (a *Agent) GetTaskLogs(ctx context.Context, taskID string, tail int) (string, error) {
+	// First check if task is in runningTasks (for tasks currently executing)
 	a.mu.RLock()
 	task, ok := a.runningTasks[taskID]
 	a.mu.RUnlock()
 
+	// If not in runningTasks, fetch from master (task may have completed ExecuteTask but container still running)
 	if !ok {
-		return "", fmt.Errorf("task %s not found or not running", taskID)
+		fetchedTask, err := a.getTaskFromMaster(taskID)
+		if err != nil {
+			return "", fmt.Errorf("task %s not found: %w", taskID, err)
+		}
+		task = fetchedTask
 	}
 
 	if task.ContainerID == "" {
@@ -552,6 +577,32 @@ func (a *Agent) GetTaskLogs(ctx context.Context, taskID string, tail int) (strin
 	}
 
 	return a.dockerClient.GetContainerLogs(ctx, task.ContainerID, tail)
+}
+
+// getTaskFromMaster fetches task details from the master
+func (a *Agent) getTaskFromMaster(taskID string) (*types.Task, error) {
+	url := fmt.Sprintf("%s/api/v1/tasks/%s", a.masterURL, taskID)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch task: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("task not found (status %d)", resp.StatusCode)
+	}
+
+	var task types.Task
+	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+		return nil, fmt.Errorf("failed to decode task: %w", err)
+	}
+
+	// Verify the task is assigned to this node
+	if task.NodeID != a.nodeID {
+		return nil, fmt.Errorf("task %s is not assigned to this node (assigned to %s)", taskID, task.NodeID)
+	}
+
+	return &task, nil
 }
 
 // GetPod retrieves a running pod by ID.

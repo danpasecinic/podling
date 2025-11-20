@@ -9,6 +9,7 @@ import (
 var (
 	runImage string
 	runEnv   []string
+	runPorts []string
 )
 
 var runCmd = &cobra.Command{
@@ -40,7 +41,7 @@ var runCmd = &cobra.Command{
 		}
 
 		client := NewClient(GetMasterURL())
-		task, err := client.CreateTask(name, runImage, envMap)
+		task, err := client.CreateTaskWithPorts(name, runImage, envMap, runPorts)
 		if err != nil {
 			return fmt.Errorf("failed to create task: %w", err)
 		}
@@ -70,5 +71,6 @@ func init() {
 
 	runCmd.Flags().StringVarP(&runImage, "image", "i", "", "container image to run (required)")
 	runCmd.Flags().StringArrayVarP(&runEnv, "env", "e", []string{}, "environment variables (KEY=VALUE)")
+	runCmd.Flags().StringArrayVarP(&runPorts, "port", "p", []string{}, "port mappings (hostPort:containerPort)")
 	_ = runCmd.MarkFlagRequired("image")
 }

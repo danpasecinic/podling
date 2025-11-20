@@ -67,6 +67,7 @@ type StateStore interface {
 	GetTask(taskID string) (types.Task, error)
 	UpdateTask(taskID string, updates TaskUpdate) error
 	ListTasks() ([]types.Task, error)
+	DeleteTask(taskID string) error
 
 	// Pod operations
 	AddPod(pod types.Pod) error
@@ -80,6 +81,7 @@ type StateStore interface {
 	GetNode(nodeID string) (types.Node, error)
 	UpdateNode(nodeID string, updates NodeUpdate) error
 	ListNodes() ([]types.Node, error)
+	DeleteNode(nodeID string) error
 
 	// Service operations
 	AddService(service types.Service) error
@@ -195,6 +197,19 @@ func (s *InMemoryStore) ListTasks() ([]types.Task, error) {
 	}
 
 	return tasks, nil
+}
+
+// DeleteTask removes a task from the store
+func (s *InMemoryStore) DeleteTask(taskID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.tasks[taskID]; !exists {
+		return ErrTaskNotFound
+	}
+
+	delete(s.tasks, taskID)
+	return nil
 }
 
 // AddPod adds a new pod to the store
@@ -362,6 +377,19 @@ func (s *InMemoryStore) ListNodes() ([]types.Node, error) {
 	return nodes, nil
 }
 
+// DeleteNode removes a node from the store
+func (s *InMemoryStore) DeleteNode(nodeID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.nodes[nodeID]; !exists {
+		return ErrNodeNotFound
+	}
+
+	delete(s.nodes, nodeID)
+	return nil
+}
+
 // GetAvailableNodes returns all online nodes
 func (s *InMemoryStore) GetAvailableNodes() ([]types.Node, error) {
 	s.mu.RLock()
@@ -475,10 +503,6 @@ func (s *InMemoryStore) ListServices(namespace string) ([]types.Service, error) 
 		}
 
 		filterNamespace := namespace
-		if filterNamespace == "" {
-			filterNamespace = "default"
-		}
-
 		if svcNamespace == filterNamespace {
 			services = append(services, service)
 		}

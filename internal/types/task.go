@@ -31,4 +31,5 @@ type Task struct {
 	RestartPolicy  RestartPolicy        `json:"restartPolicy,omitempty"`
 	HealthStatus   HealthStatus         `json:"healthStatus,omitempty"`
 	Resources      ResourceRequirements `json:"resources,omitempty"`
+	Ports          []ContainerPort      `json:"ports,omitempty"`
 }

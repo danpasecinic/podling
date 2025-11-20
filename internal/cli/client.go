@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danpasecinic/podling/internal/types"
@@ -33,6 +35,72 @@ func (c *Client) CreateTask(name, image string, env map[string]string) (*types.T
 		"name":  name,
 		"image": image,
 		"env":   env,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	resp, err := c.httpClient.Post(
+		c.baseURL+"/api/v1/tasks",
+		"application/json",
+		bytes.NewReader(data),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("post request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var task types.Task
+	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &task, nil
+}
+
+// CreateTaskWithPorts creates a new task with specified port mappings
+func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, portSpecs []string) (
+	*types.Task,
+	error,
+) {
+	var ports []types.ContainerPort
+	for _, portSpec := range portSpecs {
+		parts := strings.Split(portSpec, ":")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid port spec %q, expected format hostPort:containerPort", portSpec)
+		}
+
+		hostPort, err := strconv.Atoi(parts[0])
+		if err != nil {
+			return nil, fmt.Errorf("invalid host port %q: %w", parts[0], err)
+		}
+
+		containerPort, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid container port %q: %w", parts[1], err)
+		}
+
+		ports = append(
+			ports, types.ContainerPort{
+				ContainerPort: containerPort,
+				HostPort:      hostPort,
+				Protocol:      "TCP",
+			},
+		)
+	}
+
+	payload := map[string]interface{}{
+		"name":  name,
+		"image": image,
+		"env":   env,
+		"ports": ports,
 	}
 
 	data, err := json.Marshal(payload)
@@ -508,22 +576,27 @@ func (c *Client) Prune() (*types.PruneResult, error) {
 }
 
 // PruneAll removes all resources from the system
-func (c *Client) PruneAll() error {
+func (c *Client) PruneAll() (*types.PruneResult, error) {
 	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v1/prune?all=true", nil)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("prune request: %w", err)
+		return nil, fmt.Errorf("prune request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
 	}
 
-	return nil
+	var result types.PruneResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &result, nil
 }

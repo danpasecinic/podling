@@ -16,12 +16,13 @@ import (
 
 // CreateTaskRequest represents a request to create a new task.
 type CreateTaskRequest struct {
-	Name           string              `json:"name" validate:"required"`
-	Image          string              `json:"image" validate:"required"`
-	Env            map[string]string   `json:"env"`
-	LivenessProbe  *types.HealthCheck  `json:"livenessProbe,omitempty"`
-	ReadinessProbe *types.HealthCheck  `json:"readinessProbe,omitempty"`
-	RestartPolicy  types.RestartPolicy `json:"restartPolicy,omitempty"`
+	Name           string                `json:"name" validate:"required"`
+	Image          string                `json:"image" validate:"required"`
+	Env            map[string]string     `json:"env"`
+	LivenessProbe  *types.HealthCheck    `json:"livenessProbe,omitempty"`
+	ReadinessProbe *types.HealthCheck    `json:"readinessProbe,omitempty"`
+	RestartPolicy  types.RestartPolicy   `json:"restartPolicy,omitempty"`
+	Ports          []types.ContainerPort `json:"ports,omitempty"`
 }
 
 // UpdateTaskStatusRequest represents a request to update a task's status.
@@ -63,6 +64,7 @@ func (s *Server) CreateTask(c echo.Context) error {
 		ReadinessProbe: req.ReadinessProbe,
 		RestartPolicy:  req.RestartPolicy,
 		HealthStatus:   types.HealthStatusUnknown,
+		Ports:          req.Ports,
 	}
 
 	if err := s.store.AddTask(task); err != nil {

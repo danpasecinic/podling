@@ -64,6 +64,9 @@ func (c *Client) CreateContainer(ctx context.Context, imageName string, env []st
 	config := &container.Config{
 		Image: imageName,
 		Env:   env,
+		Labels: map[string]string{
+			"podling.io/managed": "true",
+		},
 	}
 
 	resp, err := c.cli.ContainerCreate(ctx, config, nil, nil, nil, "")
@@ -83,12 +86,69 @@ func (c *Client) CreateContainerWithResources(
 	config := &container.Config{
 		Image: imageName,
 		Env:   env,
+		Labels: map[string]string{
+			"podling.io/managed": "true",
+		},
 	}
 
 	hostConfig := &container.HostConfig{}
 
 	if cpuQuota > 0 {
 		// Docker uses NanoCPUs (1 CPU = 1e9 nano CPUs)
+		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)
+	}
+
+	if memoryLimit > 0 {
+		hostConfig.Memory = memoryLimit
+	}
+
+	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w", err)
+	}
+
+	return resp.ID, nil
+}
+
+// CreateContainerWithResourcesAndPorts creates a container with resource limits and port mappings
+func (c *Client) CreateContainerWithResourcesAndPorts(
+	ctx context.Context, imageName string, env []string,
+	cpuQuota float64, memoryLimit int64, ports []PortMapping,
+) (string, error) {
+	exposedPorts := nat.PortSet{}
+	portBindings := nat.PortMap{}
+
+	for _, portMapping := range ports {
+		protocol := portMapping.Protocol
+		if protocol == "" {
+			protocol = "tcp"
+		}
+
+		containerPort := nat.Port(fmt.Sprintf("%d/%s", portMapping.ContainerPort, protocol))
+		exposedPorts[containerPort] = struct{}{}
+
+		portBindings[containerPort] = []nat.PortBinding{
+			{
+				HostIP:   "0.0.0.0",
+				HostPort: fmt.Sprintf("%d", portMapping.HostPort),
+			},
+		}
+	}
+
+	config := &container.Config{
+		Image:        imageName,
+		Env:          env,
+		ExposedPorts: exposedPorts,
+		Labels: map[string]string{
+			"podling.io/managed": "true",
+		},
+	}
+
+	hostConfig := &container.HostConfig{
+		PortBindings: portBindings,
+	}
+
+	if cpuQuota > 0 {
 		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)
 	}
 
@@ -310,6 +370,9 @@ func (c *Client) CreateContainerInNetwork(
 	config := &container.Config{
 		Image: imageName,
 		Env:   env,
+		Labels: map[string]string{
+			"podling.io/managed": "true",
+		},
 	}
 
 	networkingConfig := &network.NetworkingConfig{
@@ -333,6 +396,9 @@ func (c *Client) CreateContainerInNetworkWithResources(
 	config := &container.Config{
 		Image: imageName,
 		Env:   env,
+		Labels: map[string]string{
+			"podling.io/managed": "true",
+		},
 	}
 
 	hostConfig := &container.HostConfig{}
@@ -388,6 +454,9 @@ func (c *Client) CreateContainerInNetworkWithResourcesAndPorts(
 		Image:        imageName,
 		Env:          env,
 		ExposedPorts: exposedPorts,
+		Labels: map[string]string{
+			"podling.io/managed": "true",
+		},
 	}
 
 	hostConfig := &container.HostConfig{
