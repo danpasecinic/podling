@@ -11,11 +11,13 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
+// Client represents a Podling client
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
+// NewClient creates a new Podling client with the given base URL
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
@@ -25,6 +27,7 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
+// CreateTask creates a new task with the given parameters
 func (c *Client) CreateTask(name, image string, env map[string]string) (*types.Task, error) {
 	payload := map[string]interface{}{
 		"name":  name,
@@ -60,6 +63,7 @@ func (c *Client) CreateTask(name, image string, env map[string]string) (*types.T
 	return &task, nil
 }
 
+// ListTasks retrieves all tasks from the master
 func (c *Client) ListTasks() ([]types.Task, error) {
 	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/tasks")
 	if err != nil {
@@ -80,6 +84,7 @@ func (c *Client) ListTasks() ([]types.Task, error) {
 	return tasks, nil
 }
 
+// GetTask retrieves a specific task by ID
 func (c *Client) GetTask(taskID string) (*types.Task, error) {
 	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/tasks/" + taskID)
 	if err != nil {

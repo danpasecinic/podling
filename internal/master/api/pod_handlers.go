@@ -181,6 +181,20 @@ func (s *Server) UpdatePodStatus(c echo.Context) error {
 func (s *Server) DeletePod(c echo.Context) error {
 	podID := c.Param("id")
 
+	pod, err := s.store.GetPod(podID)
+	if err != nil {
+		if errors.Is(err, state.ErrPodNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "pod not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if pod.NodeID != "" && pod.Status != types.PodSucceeded && pod.Status != types.PodFailed {
+		if err := s.notifyWorkerToCleanupPod(&pod); err != nil {
+			c.Logger().Warnf("failed to notify worker to cleanup pod: %v", err)
+		}
+	}
+
 	if err := s.store.DeletePod(podID); err != nil {
 		if errors.Is(err, state.ErrPodNotFound) {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "pod not found"})
@@ -189,6 +203,34 @@ func (s *Server) DeletePod(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "pod deleted successfully"})
+}
+
+// notifyWorkerToCleanupPod sends a request to the worker node to clean up the pod resources
+func (s *Server) notifyWorkerToCleanupPod(pod *types.Pod) error {
+	node, err := s.store.GetNode(pod.NodeID)
+	if err != nil {
+		return fmt.Errorf("failed to get node: %w", err)
+	}
+
+	url := fmt.Sprintf("http://%s:%d/api/v1/pods/%s", node.Hostname, node.Port, pod.PodID)
+
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send cleanup request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("worker returned status %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // schedulePod schedules a pod to an available node

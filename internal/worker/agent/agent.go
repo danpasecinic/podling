@@ -610,3 +610,51 @@ func (a *Agent) GetPodLogs(ctx context.Context, podID string, containerName stri
 
 	return logs, nil
 }
+
+// CleanupPod stops all containers and removes the pod network for a given pod.
+func (a *Agent) CleanupPod(ctx context.Context, podID string) error {
+	a.mu.RLock()
+	podExec, ok := a.runningPods[podID]
+	a.mu.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("pod %s not found or not running on this worker", podID)
+	}
+
+	log.Printf("cleaning up pod %s on worker request", podID)
+
+	if podExec.cancelFunc != nil {
+		podExec.cancelFunc()
+	}
+
+	podExec.mu.RLock()
+	containerIDs := make(map[string]string)
+	for name, id := range podExec.containerIDs {
+		containerIDs[name] = id
+	}
+	networkID := podExec.networkID
+	podExec.mu.RUnlock()
+
+	for name, containerID := range containerIDs {
+		log.Printf("stopping container %s (id: %s)", name, containerID)
+		if err := a.dockerClient.StopContainer(ctx, containerID); err != nil {
+			log.Printf("error stopping container %s: %v", name, err)
+		}
+
+		log.Printf("removing container %s (id: %s)", name, containerID)
+		if err := a.dockerClient.RemoveContainer(ctx, containerID); err != nil {
+			log.Printf("error removing container %s: %v", name, err)
+		}
+	}
+
+	if networkID != "" {
+		log.Printf("removing pod network: %s", networkID)
+		if err := a.dockerClient.RemovePodNetwork(ctx, networkID); err != nil {
+			log.Printf("error removing pod network %s: %v", networkID, err)
+		}
+	}
+
+	a.untrackPodExecution(podID)
+
+	return nil
+}

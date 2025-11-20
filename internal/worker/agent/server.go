@@ -33,4 +33,5 @@ func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1.POST("/pods/:id/execute", s.ExecutePod)
 	v1.GET("/pods/:id/status", s.GetPodStatus)
 	v1.GET("/pods/:id/logs", s.GetPodLogs)
+	v1.DELETE("/pods/:id", s.DeletePod)
 }

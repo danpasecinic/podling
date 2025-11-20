@@ -260,3 +260,18 @@ func (s *Server) GetPodLogs(c echo.Context) error {
 		},
 	)
 }
+
+// DeletePod handles DELETE /api/v1/pods/:id
+// Stops all containers and cleans up pod resources on this worker.
+func (s *Server) DeletePod(c echo.Context) error {
+	podID := c.Param("id")
+
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	if err := s.agent.CleanupPod(ctx, podID); err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "pod cleaned up successfully"})
+}

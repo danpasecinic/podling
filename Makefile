@@ -1,4 +1,4 @@
-.PHONY: help build run test test-coverage clean dev install-tools fmt lint
+.PHONY: help build run test test-coverage clean dev install-tools fmt lint install uninstall
 
 # Default target
 help:
@@ -15,6 +15,8 @@ help:
 	@echo "  make lint           - Run linter"
 	@echo "  make clean          - Clean build artifacts"
 	@echo "  make install-tools  - Install development tools"
+	@echo "  make install        - Install binaries to /usr/local/bin"
+	@echo "  make uninstall      - Remove installed binaries"
 
 # Build all binaries
 build:
@@ -73,3 +75,20 @@ install-tools:
 deps:
 	@go mod download
 	@go mod verify
+
+# Install binaries to /usr/local/bin
+install: build
+	@echo "Installing binaries to /usr/local/bin..."
+	@sudo cp bin/podling /usr/local/bin/podling
+	@sudo cp bin/podling-master /usr/local/bin/podling-master
+	@sudo cp bin/podling-worker /usr/local/bin/podling-worker
+	@echo "✓ Installed successfully!"
+	@echo "You can now use: podling, podling-master, podling-worker"
+
+# Remove installed binaries
+uninstall:
+	@echo "Removing installed binaries..."
+	@sudo rm -f /usr/local/bin/podling
+	@sudo rm -f /usr/local/bin/podling-master
+	@sudo rm -f /usr/local/bin/podling-worker
+	@echo "✓ Uninstalled successfully!"
