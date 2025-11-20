@@ -1,4 +1,4 @@
-.PHONY: help build run test test-coverage clean dev install-tools fmt lint install uninstall
+.PHONY: help build run test test-coverage clean dev install-tools fmt lint install uninstall run-cluster stop-cluster
 
 # Default target
 help:
@@ -17,6 +17,8 @@ help:
 	@echo "  make install-tools  - Install development tools"
 	@echo "  make install        - Install binaries to /usr/local/bin"
 	@echo "  make uninstall      - Remove installed binaries"
+	@echo "  make run-cluster    - Run master + 2 workers in background"
+	@echo "  make stop-cluster   - Stop all running podling processes"
 
 # Build all binaries
 build:
@@ -92,3 +94,33 @@ uninstall:
 	@sudo rm -f /usr/local/bin/podling-master
 	@sudo rm -f /usr/local/bin/podling-worker
 	@echo "✓ Uninstalled successfully!"
+
+# Run master and workers together
+run-cluster: build
+	@echo "Starting Podling cluster..."
+	@./bin/podling-master > /tmp/podling-master.log 2>&1 & echo $$! > /tmp/podling-master.pid
+	@sleep 2
+	@./bin/podling-worker -node-id=worker-1 -port=8071 > /tmp/podling-worker-1.log 2>&1 & echo $$! > /tmp/podling-worker-1.pid
+	@./bin/podling-worker -node-id=worker-2 -port=8072 > /tmp/podling-worker-2.log 2>&1 & echo $$! > /tmp/podling-worker-2.pid
+	@sleep 1
+	@echo "✓ Cluster started!"
+	@echo "  Master:   http://localhost:8070"
+	@echo "  Worker 1: http://localhost:8071"
+	@echo "  Worker 2: http://localhost:8072"
+	@echo ""
+	@echo "Logs:"
+	@echo "  Master:   tail -f /tmp/podling-master.log"
+	@echo "  Worker 1: tail -f /tmp/podling-worker-1.log"
+	@echo "  Worker 2: tail -f /tmp/podling-worker-2.log"
+	@echo ""
+	@echo "Stop with: make stop-cluster"
+
+# Stop all podling processes
+stop-cluster:
+	@echo "Stopping Podling cluster..."
+	@if [ -f /tmp/podling-master.pid ]; then kill $$(cat /tmp/podling-master.pid) 2>/dev/null || true; rm /tmp/podling-master.pid; fi
+	@if [ -f /tmp/podling-worker-1.pid ]; then kill $$(cat /tmp/podling-worker-1.pid) 2>/dev/null || true; rm /tmp/podling-worker-1.pid; fi
+	@if [ -f /tmp/podling-worker-2.pid ]; then kill $$(cat /tmp/podling-worker-2.pid) 2>/dev/null || true; rm /tmp/podling-worker-2.pid; fi
+	@pkill -f podling-master || true
+	@pkill -f podling-worker || true
+	@echo "✓ Cluster stopped!"
