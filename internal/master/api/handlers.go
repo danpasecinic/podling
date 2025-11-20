@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	cryptoRand "crypto/rand"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -296,5 +298,43 @@ func (s *Server) scheduleTask(taskID string) error {
 		NodeID: &selectedNode.NodeID,
 	}
 
-	return s.store.UpdateTask(taskID, update)
+	if err := s.store.UpdateTask(taskID, update); err != nil {
+		return err
+	}
+
+	go s.triggerTaskExecution(taskID, *selectedNode)
+
+	return nil
+}
+
+// triggerTaskExecution sends a request to the selected node to execute the task.
+func (s *Server) triggerTaskExecution(taskID string, node types.Node) {
+	task, err := s.store.GetTask(taskID)
+	if err != nil {
+		return
+	}
+
+	url := fmt.Sprintf("http://%s:%d/api/v1/tasks/%s/execute", node.Hostname, node.Port, taskID)
+
+	payload := map[string]interface{}{
+		"task": task,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
 }
