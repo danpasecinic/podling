@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { useTask } from '@/api'
+import { useTask } from '@/hooks'
 import { StatusBadge, HealthBadge, TimestampDisplay } from '@/components/shared'
 import { ArrowLeft } from 'lucide-react'
 

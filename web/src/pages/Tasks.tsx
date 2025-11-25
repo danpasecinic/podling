@@ -3,7 +3,7 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTasks } from '@/api'
+import { useTasks } from '@/hooks'
 import { StatusBadge, HealthBadge, TimestampDisplay } from '@/components/shared'
 
 export function Tasks() {

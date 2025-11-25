@@ -1,3 +1,3 @@
-export { AppShell } from './AppShell'
-export { AppSidebar } from './AppSidebar'
-export { Header } from './Header'
+export { AppShell } from './app-shell'
+export { AppSidebar } from './app-sidebar'
+export { Header } from './header'

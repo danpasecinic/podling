@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiClient } from '../client'
-import type { Service, Endpoints } from '../types'
+import { apiClient } from '@/api/client'
+import type { Service, Endpoints } from '@/api/types'
 
 export function useServices(refetchInterval = 5000) {
   return useQuery({

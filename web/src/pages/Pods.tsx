@@ -3,7 +3,7 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { usePods } from '@/api'
+import { usePods } from '@/hooks'
 import { StatusBadge, LabelBadges, TimestampDisplay } from '@/components/shared'
 
 export function Pods() {

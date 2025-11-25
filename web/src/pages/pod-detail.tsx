@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { usePod } from '@/api'
+import { usePod } from '@/hooks'
 import { StatusBadge, HealthBadge, LabelBadges, TimestampDisplay } from '@/components/shared'
 import { ArrowLeft } from 'lucide-react'
 

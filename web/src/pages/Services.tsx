@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { useServices } from '@/api'
+import { useServices } from '@/hooks'
 import { LabelBadges, TimestampDisplay } from '@/components/shared'
 
 export function Services() {

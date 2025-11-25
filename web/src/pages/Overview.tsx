@@ -1,6 +1,6 @@
 import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useNodes, usePods, useTasks, useServices } from '@/api'
+import { useNodes, usePods, useTasks, useServices } from '@/hooks'
 import { Server, Box, PlayCircle, Network } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 

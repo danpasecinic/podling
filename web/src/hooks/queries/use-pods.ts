@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiClient } from '../client'
-import type { Pod } from '../types'
+import { apiClient } from '@/api/client'
+import type { Pod } from '@/api/types'
 
 export function usePods(refetchInterval = 5000) {
   return useQuery({

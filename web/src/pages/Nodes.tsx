@@ -3,7 +3,7 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useNodes } from '@/api'
+import { useNodes } from '@/hooks'
 import { StatusBadge, TimestampDisplay, ResourceGauge } from '@/components/shared'
 import { formatBytes, formatCPU } from '@/lib/formatters'
 

@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { useService, useEndpoints } from '@/api'
+import { useService, useEndpoints } from '@/hooks'
 import { LabelBadges, TimestampDisplay } from '@/components/shared'
 import { ArrowLeft } from 'lucide-react'
 

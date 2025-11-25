@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiClient } from '../client'
-import type { Node } from '../types'
+import { apiClient } from '@/api/client'
+import type { Node } from '@/api/types'
 
 export function useNodes(refetchInterval = 5000) {
   return useQuery({
