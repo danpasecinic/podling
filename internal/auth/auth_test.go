@@ -1,14 +1,226 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/labstack/echo/v4"
 )
+
+type mockAuthStore struct {
+	mu      sync.RWMutex
+	users   map[string]User
+	apiKeys map[string]APIKey
+}
+
+func newMockAuthStore() *mockAuthStore {
+	return &mockAuthStore{
+		users:   make(map[string]User),
+		apiKeys: make(map[string]APIKey),
+	}
+}
+
+func (s *mockAuthStore) AddUser(user User) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.users[user.ID]; exists {
+		return ErrUserAlreadyExists
+	}
+
+	for _, u := range s.users {
+		if u.Username == user.Username {
+			return ErrUserAlreadyExists
+		}
+	}
+
+	s.users[user.ID] = user
+	return nil
+}
+
+func (s *mockAuthStore) GetUser(userID string) (User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	user, exists := s.users[userID]
+	if !exists {
+		return User{}, ErrUserNotFound
+	}
+
+	return user, nil
+}
+
+func (s *mockAuthStore) GetUserByUsername(username string) (User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, user := range s.users {
+		if user.Username == username {
+			return user, nil
+		}
+	}
+
+	return User{}, ErrUserNotFound
+}
+
+func (s *mockAuthStore) UpdateUser(userID string, updates UserUpdate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, exists := s.users[userID]
+	if !exists {
+		return ErrUserNotFound
+	}
+
+	if updates.PasswordHash != nil {
+		user.PasswordHash = *updates.PasswordHash
+	}
+	if updates.Role != nil {
+		user.Role = *updates.Role
+	}
+	if updates.LastLogin != nil {
+		user.LastLogin = updates.LastLogin
+	}
+	if updates.Disabled != nil {
+		user.Disabled = *updates.Disabled
+	}
+
+	s.users[userID] = user
+	return nil
+}
+
+func (s *mockAuthStore) ListUsers() ([]User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	users := make([]User, 0, len(s.users))
+	for _, user := range s.users {
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+func (s *mockAuthStore) DeleteUser(userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.users[userID]; !exists {
+		return ErrUserNotFound
+	}
+
+	delete(s.users, userID)
+	return nil
+}
+
+func (s *mockAuthStore) AddAPIKey(apiKey APIKey) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.apiKeys[apiKey.ID]; exists {
+		return errors.New("api key already exists")
+	}
+
+	s.apiKeys[apiKey.ID] = apiKey
+	return nil
+}
+
+func (s *mockAuthStore) GetAPIKey(keyID string) (APIKey, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	apiKey, exists := s.apiKeys[keyID]
+	if !exists {
+		return APIKey{}, ErrAPIKeyNotFound
+	}
+
+	return apiKey, nil
+}
+
+func (s *mockAuthStore) GetAPIKeyByHash(keyHash string) (APIKey, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, apiKey := range s.apiKeys {
+		if apiKey.KeyHash == keyHash {
+			return apiKey, nil
+		}
+	}
+
+	return APIKey{}, ErrAPIKeyNotFound
+}
+
+func (s *mockAuthStore) UpdateAPIKeyLastUsed(keyID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	apiKey, exists := s.apiKeys[keyID]
+	if !exists {
+		return ErrAPIKeyNotFound
+	}
+
+	now := time.Now()
+	apiKey.LastUsed = &now
+	s.apiKeys[keyID] = apiKey
+	return nil
+}
+
+func (s *mockAuthStore) RevokeAPIKey(keyID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	apiKey, exists := s.apiKeys[keyID]
+	if !exists {
+		return ErrAPIKeyNotFound
+	}
+
+	apiKey.Revoked = true
+	s.apiKeys[keyID] = apiKey
+	return nil
+}
+
+func (s *mockAuthStore) ListAPIKeys() ([]APIKey, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	keys := make([]APIKey, 0, len(s.apiKeys))
+	for _, key := range s.apiKeys {
+		keys = append(keys, key)
+	}
+
+	return keys, nil
+}
+
+func (s *mockAuthStore) ListAPIKeysByNodeID(nodeID string) ([]APIKey, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	keys := make([]APIKey, 0)
+	for _, key := range s.apiKeys {
+		if key.NodeID == nodeID {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys, nil
+}
+
+func (s *mockAuthStore) DeleteAPIKey(keyID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.apiKeys[keyID]; !exists {
+		return ErrAPIKeyNotFound
+	}
+
+	delete(s.apiKeys, keyID)
+	return nil
+}
 
 func TestRolePermissions(t *testing.T) {
 	tests := []struct {
@@ -248,8 +460,8 @@ func TestPasswordHashing(t *testing.T) {
 	)
 }
 
-func TestInMemoryAuthStore(t *testing.T) {
-	store := NewInMemoryAuthStore()
+func TestMockAuthStore(t *testing.T) {
+	store := newMockAuthStore()
 
 	t.Run(
 		"User_CRUD", func(t *testing.T) {
@@ -376,7 +588,7 @@ func TestInMemoryAuthStore(t *testing.T) {
 }
 
 func TestMiddleware(t *testing.T) {
-	authStore := NewInMemoryAuthStore()
+	authStore := newMockAuthStore()
 	config := Config{
 		Enabled:      true,
 		JWTSecret:    "test-jwt-secret",
@@ -472,7 +684,7 @@ func TestMiddleware(t *testing.T) {
 }
 
 func TestMiddleware_Disabled(t *testing.T) {
-	authStore := NewInMemoryAuthStore()
+	authStore := newMockAuthStore()
 	config := Config{
 		Enabled: false,
 	}

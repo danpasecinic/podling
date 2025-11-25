@@ -47,6 +47,10 @@ func (s *PostgresStore) Close() error {
 	return nil
 }
 
+func (s *PostgresStore) DB() *sql.DB {
+	return s.db
+}
+
 func (s *PostgresStore) runMigrations() error {
 	goose.SetBaseFS(embedMigrations)
 

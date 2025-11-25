@@ -49,7 +49,7 @@ func main() {
 
 	go server.StartNodeExpirationChecker(ctx)
 
-	authConfig, authStore := initAuth()
+	authConfig, authStore := initAuth(store)
 	authMiddleware := auth.NewMiddleware(authConfig, authStore)
 	authMiddleware.SetSkipPaths("/health", "/api/v1/auth/login", "/api/v1/auth/refresh")
 
@@ -146,7 +146,7 @@ func maskPassword() string {
 	return "***masked***"
 }
 
-func initAuth() (auth.Config, auth.AuthStore) {
+func initAuth(stateStore state.StateStore) (auth.Config, auth.AuthStore) {
 	config := auth.DefaultConfig()
 
 	if enabled := os.Getenv("AUTH_ENABLED"); enabled == "true" || enabled == "1" {
@@ -169,7 +169,18 @@ func initAuth() (auth.Config, auth.AuthStore) {
 		}
 	}
 
-	authStore := auth.NewInMemoryAuthStore()
+	pgStore, ok := stateStore.(*state.PostgresStore)
+	if !ok {
+		if config.Enabled {
+			log.Fatal("authentication requires PostgreSQL store (set STORE_TYPE=postgres)")
+		}
+		log.Println("authentication disabled (requires STORE_TYPE=postgres)")
+		config.Enabled = false
+		return config, nil
+	}
+
+	authStore := auth.NewPostgresAuthStore(pgStore.DB())
+	log.Println("using PostgreSQL auth store")
 
 	if config.Enabled {
 		log.Println("authentication enabled")
