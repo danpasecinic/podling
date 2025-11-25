@@ -13,13 +13,13 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
-// Client represents a Podling client
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	token      string
+	apiKey     string
 }
 
-// NewClient creates a new Podling client with the given base URL
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
@@ -29,7 +29,52 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// CreateTask creates a new task with the given parameters
+func (c *Client) SetToken(token string) {
+	c.token = token
+}
+
+func (c *Client) SetAPIKey(apiKey string) {
+	c.apiKey = apiKey
+}
+
+func (c *Client) addAuthHeader(req *http.Request) {
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	} else if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+}
+
+func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
+	c.addAuthHeader(req)
+	return c.httpClient.Do(req)
+}
+
+func (c *Client) get(url string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.doRequest(req)
+}
+
+func (c *Client) post(url string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return c.doRequest(req)
+}
+
+func (c *Client) delete(url string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.doRequest(req)
+}
+
 func (c *Client) CreateTask(name, image string, env map[string]string) (*types.Task, error) {
 	payload := map[string]interface{}{
 		"name":  name,
@@ -42,11 +87,7 @@ func (c *Client) CreateTask(name, image string, env map[string]string) (*types.T
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(
-		c.baseURL+"/api/v1/tasks",
-		"application/json",
-		bytes.NewReader(data),
-	)
+	resp, err := c.post(c.baseURL+"/api/v1/tasks", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("post request: %w", err)
 	}
@@ -108,11 +149,7 @@ func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, 
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(
-		c.baseURL+"/api/v1/tasks",
-		"application/json",
-		bytes.NewReader(data),
-	)
+	resp, err := c.post(c.baseURL+"/api/v1/tasks", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("post request: %w", err)
 	}
@@ -131,9 +168,8 @@ func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, 
 	return &task, nil
 }
 
-// ListTasks retrieves all tasks from the master
 func (c *Client) ListTasks() ([]types.Task, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/tasks")
+	resp, err := c.get(c.baseURL + "/api/v1/tasks")
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -152,9 +188,8 @@ func (c *Client) ListTasks() ([]types.Task, error) {
 	return tasks, nil
 }
 
-// GetTask retrieves a specific task by ID
 func (c *Client) GetTask(taskID string) (*types.Task, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/tasks/" + taskID)
+	resp, err := c.get(c.baseURL + "/api/v1/tasks/" + taskID)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
