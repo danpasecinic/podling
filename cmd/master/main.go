@@ -108,45 +108,27 @@ func main() {
 	e.Logger.Info("server stopped")
 }
 
-// initStore initializes the state store based on environment variables
-// Returns the store and an optional closer function
-func initStore() (state.StateStore, func() error) {
-	storeType := os.Getenv("STORE_TYPE")
-	if storeType == "" {
-		storeType = "memory"
+func initStore() (*state.PostgresStateStore, func() error) {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL environment variable is required")
 	}
 
-	switch storeType {
-	case "postgres":
-		dbURL := os.Getenv("DATABASE_URL")
-		if dbURL == "" {
-			log.Fatal("DATABASE_URL environment variable is required when STORE_TYPE=postgres")
-		}
-
-		log.Printf("initializing PostgreSQL store with connection: %s", maskPassword())
-		pgStore, err := state.NewPostgresStore(dbURL)
-		if err != nil {
-			log.Fatalf("failed to initialize PostgreSQL store: %v", err)
-		}
-
-		log.Println("PostgreSQL store initialized successfully")
-		return pgStore, pgStore.Close
-
-	case "memory":
-		log.Println("using in-memory store (data will not persist)")
-		return state.NewInMemoryStore(), nil
-
-	default:
-		log.Fatalf("unknown STORE_TYPE: %s (valid options: memory, postgres)", storeType)
-		return nil, nil
+	log.Printf("initializing PostgreSQL store with connection: %s", maskPassword())
+	pgStore, err := state.NewPostgresStateStore(dbURL)
+	if err != nil {
+		log.Fatalf("failed to initialize PostgreSQL store: %v", err)
 	}
+
+	log.Println("PostgreSQL store initialized successfully")
+	return pgStore, pgStore.Close
 }
 
 func maskPassword() string {
 	return "***masked***"
 }
 
-func initAuth(stateStore state.StateStore) (auth.Config, auth.AuthStore) {
+func initAuth(pgStore *state.PostgresStateStore) (auth.Config, auth.AuthStore) {
 	config := auth.DefaultConfig()
 
 	if enabled := os.Getenv("AUTH_ENABLED"); enabled == "true" || enabled == "1" {
@@ -169,18 +151,7 @@ func initAuth(stateStore state.StateStore) (auth.Config, auth.AuthStore) {
 		}
 	}
 
-	pgStore, ok := stateStore.(*state.PostgresStore)
-	if !ok {
-		if config.Enabled {
-			log.Fatal("authentication requires PostgreSQL store (set STORE_TYPE=postgres)")
-		}
-		log.Println("authentication disabled (requires STORE_TYPE=postgres)")
-		config.Enabled = false
-		return config, nil
-	}
-
 	authStore := auth.NewPostgresAuthStore(pgStore.DB())
-	log.Println("using PostgreSQL auth store")
 
 	if config.Enabled {
 		log.Println("authentication enabled")

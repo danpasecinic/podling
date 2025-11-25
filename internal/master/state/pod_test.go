@@ -8,8 +8,8 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
-func TestInMemoryStore_AddPod(t *testing.T) {
-	store := NewInMemoryStore()
+func TestMockStateStore_AddPod(t *testing.T) {
+	store := NewMockStateStore()
 
 	pod := types.Pod{
 		PodID:     "pod-1",
@@ -33,8 +33,8 @@ func TestInMemoryStore_AddPod(t *testing.T) {
 	}
 }
 
-func TestInMemoryStore_GetPod(t *testing.T) {
-	store := NewInMemoryStore()
+func TestMockStateStore_GetPod(t *testing.T) {
+	store := NewMockStateStore()
 
 	pod := types.Pod{
 		PodID:     "pod-1",
@@ -77,8 +77,8 @@ func TestInMemoryStore_GetPod(t *testing.T) {
 	}
 }
 
-func TestInMemoryStore_UpdatePod(t *testing.T) {
-	store := NewInMemoryStore()
+func TestMockStateStore_UpdatePod(t *testing.T) {
+	store := NewMockStateStore()
 
 	pod := types.Pod{
 		PodID:     "pod-1",
@@ -146,8 +146,8 @@ func TestInMemoryStore_UpdatePod(t *testing.T) {
 	}
 }
 
-func TestInMemoryStore_ListPods(t *testing.T) {
-	store := NewInMemoryStore()
+func TestMockStateStore_ListPods(t *testing.T) {
+	store := NewMockStateStore()
 
 	for i := 1; i <= 3; i++ {
 		pod := types.Pod{
@@ -175,8 +175,8 @@ func TestInMemoryStore_ListPods(t *testing.T) {
 	}
 }
 
-func TestInMemoryStore_DeletePod(t *testing.T) {
-	store := NewInMemoryStore()
+func TestMockStateStore_DeletePod(t *testing.T) {
+	store := NewMockStateStore()
 
 	pod := types.Pod{
 		PodID:     "pod-1",
@@ -209,8 +209,8 @@ func TestInMemoryStore_DeletePod(t *testing.T) {
 	}
 }
 
-func TestInMemoryStore_ConcurrentPodOperations(t *testing.T) {
-	store := NewInMemoryStore()
+func TestMockStateStore_ConcurrentPodOperations(t *testing.T) {
+	store := NewMockStateStore()
 
 	pod := types.Pod{
 		PodID:     "pod-1",

@@ -121,7 +121,7 @@ func TestNextIP(t *testing.T) {
 }
 
 func TestEndpointControllerGetPodIP(t *testing.T) {
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	ec := NewEndpointController(store)
 
 	pod := types.Pod{
@@ -155,7 +155,7 @@ func TestEndpointControllerGetPodIP(t *testing.T) {
 }
 
 func TestEndpointControllerIsPodReady(t *testing.T) {
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	ec := NewEndpointController(store)
 
 	pod := types.Pod{
@@ -207,7 +207,7 @@ func TestEndpointControllerIsPodReady(t *testing.T) {
 }
 
 func TestEndpointControllerBuildEndpoints(t *testing.T) {
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	ec := NewEndpointController(store)
 
 	service := types.Service{
@@ -308,7 +308,7 @@ func TestEndpointControllerBuildEndpoints(t *testing.T) {
 }
 
 func TestEndpointControllerSyncServiceEndpoints(t *testing.T) {
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	ec := NewEndpointController(store)
 
 	service := types.Service{
@@ -386,7 +386,7 @@ func TestEndpointControllerSyncServiceEndpoints(t *testing.T) {
 }
 
 func TestEndpointControllerAllocateReleaseClusterIP(t *testing.T) {
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	ec := NewEndpointController(store)
 
 	ip, err := ec.AllocateClusterIP()
@@ -410,7 +410,7 @@ func TestEndpointControllerAllocateReleaseClusterIP(t *testing.T) {
 }
 
 func TestEndpointControllerSyncAllEndpoints(t *testing.T) {
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	ec := NewEndpointController(store)
 
 	service1 := types.Service{

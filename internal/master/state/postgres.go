@@ -17,11 +17,11 @@ import (
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
-type PostgresStore struct {
+type PostgresStateStore struct {
 	db *sql.DB
 }
 
-func NewPostgresStore(connectionString string) (*PostgresStore, error) {
+func NewPostgresStateStore(connectionString string) (*PostgresStateStore, error) {
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -31,7 +31,7 @@ func NewPostgresStore(connectionString string) (*PostgresStore, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	store := &PostgresStore{db: db}
+	store := &PostgresStateStore{db: db}
 
 	if err := store.runMigrations(); err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
@@ -40,18 +40,18 @@ func NewPostgresStore(connectionString string) (*PostgresStore, error) {
 	return store, nil
 }
 
-func (s *PostgresStore) Close() error {
+func (s *PostgresStateStore) Close() error {
 	if s.db != nil {
 		return s.db.Close()
 	}
 	return nil
 }
 
-func (s *PostgresStore) DB() *sql.DB {
+func (s *PostgresStateStore) DB() *sql.DB {
 	return s.db
 }
 
-func (s *PostgresStore) runMigrations() error {
+func (s *PostgresStateStore) runMigrations() error {
 	goose.SetBaseFS(embedMigrations)
 
 	if err := goose.SetDialect("postgres"); err != nil {
@@ -65,7 +65,7 @@ func (s *PostgresStore) runMigrations() error {
 	return nil
 }
 
-func (s *PostgresStore) AddTask(task types.Task) error {
+func (s *PostgresStateStore) AddTask(task types.Task) error {
 	var exists bool
 	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM tasks WHERE task_id = $1)", task.TaskID).Scan(&exists)
 	if err != nil {
@@ -139,7 +139,7 @@ func (s *PostgresStore) AddTask(task types.Task) error {
 	return nil
 }
 
-func (s *PostgresStore) GetTask(taskID string) (types.Task, error) {
+func (s *PostgresStateStore) GetTask(taskID string) (types.Task, error) {
 	query := `
 		SELECT task_id, name, image, env, status, node_id, container_id, created_at, started_at, finished_at, error,
 		       liveness_probe, readiness_probe, restart_policy, health_status, ports, resources
@@ -223,7 +223,7 @@ func (s *PostgresStore) GetTask(taskID string) (types.Task, error) {
 	return task, nil
 }
 
-func (s *PostgresStore) UpdateTask(taskID string, updates TaskUpdate) error {
+func (s *PostgresStateStore) UpdateTask(taskID string, updates TaskUpdate) error {
 	var exists bool
 	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM tasks WHERE task_id = $1)", taskID).Scan(&exists)
 	if err != nil {
@@ -285,7 +285,7 @@ func (s *PostgresStore) UpdateTask(taskID string, updates TaskUpdate) error {
 	return nil
 }
 
-func (s *PostgresStore) ListTasks() ([]types.Task, error) {
+func (s *PostgresStateStore) ListTasks() ([]types.Task, error) {
 	query := `
 		SELECT task_id, name, image, env, status, node_id, container_id, created_at, started_at, finished_at, error,
 		       liveness_probe, readiness_probe, restart_policy, health_status, ports, resources
@@ -382,7 +382,7 @@ func (s *PostgresStore) ListTasks() ([]types.Task, error) {
 	return tasks, nil
 }
 
-func (s *PostgresStore) DeleteTask(taskID string) error {
+func (s *PostgresStateStore) DeleteTask(taskID string) error {
 	result, err := s.db.Exec("DELETE FROM tasks WHERE task_id = $1", taskID)
 	if err != nil {
 		return fmt.Errorf("failed to delete task: %w", err)
@@ -400,7 +400,7 @@ func (s *PostgresStore) DeleteTask(taskID string) error {
 	return nil
 }
 
-func (s *PostgresStore) AddPod(pod types.Pod) error {
+func (s *PostgresStateStore) AddPod(pod types.Pod) error {
 	var exists bool
 	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM pods WHERE pod_id = $1)", pod.PodID).Scan(&exists)
 	if err != nil {
@@ -456,7 +456,7 @@ func (s *PostgresStore) AddPod(pod types.Pod) error {
 	return nil
 }
 
-func (s *PostgresStore) GetPod(podID string) (types.Pod, error) {
+func (s *PostgresStateStore) GetPod(podID string) (types.Pod, error) {
 	query := `
 		SELECT pod_id, name, namespace, labels, annotations, containers, status, node_id, restart_policy, created_at, scheduled_at, started_at, finished_at, message, reason
 		FROM pods
@@ -525,7 +525,7 @@ func (s *PostgresStore) GetPod(podID string) (types.Pod, error) {
 	return pod, nil
 }
 
-func (s *PostgresStore) UpdatePod(podID string, updates PodUpdate) error {
+func (s *PostgresStateStore) UpdatePod(podID string, updates PodUpdate) error {
 	var exists bool
 	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM pods WHERE pod_id = $1)", podID).Scan(&exists)
 	if err != nil {
@@ -609,7 +609,7 @@ func (s *PostgresStore) UpdatePod(podID string, updates PodUpdate) error {
 	return nil
 }
 
-func (s *PostgresStore) ListPods() ([]types.Pod, error) {
+func (s *PostgresStateStore) ListPods() ([]types.Pod, error) {
 	query := `
 		SELECT pod_id, name, namespace, labels, annotations, containers, status, node_id, restart_policy, created_at, scheduled_at, started_at, finished_at, message, reason
 		FROM pods
@@ -694,7 +694,7 @@ func (s *PostgresStore) ListPods() ([]types.Pod, error) {
 	return pods, nil
 }
 
-func (s *PostgresStore) DeletePod(podID string) error {
+func (s *PostgresStateStore) DeletePod(podID string) error {
 	result, err := s.db.Exec("DELETE FROM pods WHERE pod_id = $1", podID)
 	if err != nil {
 		return fmt.Errorf("failed to delete pod: %w", err)
@@ -712,7 +712,7 @@ func (s *PostgresStore) DeletePod(podID string) error {
 	return nil
 }
 
-func (s *PostgresStore) AddNode(node types.Node) error {
+func (s *PostgresStateStore) AddNode(node types.Node) error {
 	var exists bool
 	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM nodes WHERE node_id = $1)", node.NodeID).Scan(&exists)
 	if err != nil {
@@ -750,7 +750,7 @@ func (s *PostgresStore) AddNode(node types.Node) error {
 	return nil
 }
 
-func (s *PostgresStore) GetNode(nodeID string) (types.Node, error) {
+func (s *PostgresStateStore) GetNode(nodeID string) (types.Node, error) {
 	query := `
 		SELECT node_id, hostname, port, status, running_tasks, last_heartbeat, resources
 		FROM nodes
@@ -785,7 +785,7 @@ func (s *PostgresStore) GetNode(nodeID string) (types.Node, error) {
 	return node, nil
 }
 
-func (s *PostgresStore) UpdateNode(nodeID string, updates NodeUpdate) error {
+func (s *PostgresStateStore) UpdateNode(nodeID string, updates NodeUpdate) error {
 	var exists bool
 	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM nodes WHERE node_id = $1)", nodeID).Scan(&exists)
 	if err != nil {
@@ -827,7 +827,7 @@ func (s *PostgresStore) UpdateNode(nodeID string, updates NodeUpdate) error {
 	return nil
 }
 
-func (s *PostgresStore) ListNodes() ([]types.Node, error) {
+func (s *PostgresStateStore) ListNodes() ([]types.Node, error) {
 	query := `
 		SELECT node_id, hostname, port, status, running_tasks, last_heartbeat, resources
 		FROM nodes
@@ -873,7 +873,7 @@ func (s *PostgresStore) ListNodes() ([]types.Node, error) {
 	return nodes, nil
 }
 
-func (s *PostgresStore) DeleteNode(nodeID string) error {
+func (s *PostgresStateStore) DeleteNode(nodeID string) error {
 	result, err := s.db.Exec("DELETE FROM nodes WHERE node_id = $1", nodeID)
 	if err != nil {
 		return fmt.Errorf("failed to delete node: %w", err)
@@ -891,7 +891,7 @@ func (s *PostgresStore) DeleteNode(nodeID string) error {
 	return nil
 }
 
-func (s *PostgresStore) GetAvailableNodes() ([]types.Node, error) {
+func (s *PostgresStateStore) GetAvailableNodes() ([]types.Node, error) {
 	query := `
 		SELECT node_id, hostname, port, status, running_tasks, last_heartbeat, resources
 		FROM nodes
@@ -960,7 +960,7 @@ func nullBytes(b []byte) interface{} {
 	return b
 }
 
-func (s *PostgresStore) AddService(service types.Service) error {
+func (s *PostgresStateStore) AddService(service types.Service) error {
 	var exists bool
 	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM services WHERE service_id = $1)", service.ServiceID).Scan(&exists)
 	if err != nil {
@@ -1018,7 +1018,7 @@ func (s *PostgresStore) AddService(service types.Service) error {
 	return nil
 }
 
-func (s *PostgresStore) GetService(serviceID string) (types.Service, error) {
+func (s *PostgresStateStore) GetService(serviceID string) (types.Service, error) {
 	query := `
 		SELECT service_id, name, namespace, type, cluster_ip, selector, ports, labels, annotations, session_affinity, created_at, updated_at
 		FROM services
@@ -1077,7 +1077,7 @@ func (s *PostgresStore) GetService(serviceID string) (types.Service, error) {
 	return service, nil
 }
 
-func (s *PostgresStore) GetServiceByName(namespace, name string) (types.Service, error) {
+func (s *PostgresStateStore) GetServiceByName(namespace, name string) (types.Service, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
@@ -1140,7 +1140,7 @@ func (s *PostgresStore) GetServiceByName(namespace, name string) (types.Service,
 	return service, nil
 }
 
-func (s *PostgresStore) UpdateService(serviceID string, updates types.ServiceUpdate) error {
+func (s *PostgresStateStore) UpdateService(serviceID string, updates types.ServiceUpdate) error {
 	// First check if service exists
 	_, err := s.GetService(serviceID)
 	if err != nil {
@@ -1208,7 +1208,7 @@ func (s *PostgresStore) UpdateService(serviceID string, updates types.ServiceUpd
 	return nil
 }
 
-func (s *PostgresStore) ListServices(namespace string) ([]types.Service, error) {
+func (s *PostgresStateStore) ListServices(namespace string) ([]types.Service, error) {
 	var query string
 	var args []interface{}
 
@@ -1293,7 +1293,7 @@ func (s *PostgresStore) ListServices(namespace string) ([]types.Service, error) 
 	return services, nil
 }
 
-func (s *PostgresStore) DeleteService(serviceID string) error {
+func (s *PostgresStateStore) DeleteService(serviceID string) error {
 	result, err := s.db.Exec("DELETE FROM services WHERE service_id = $1", serviceID)
 	if err != nil {
 		return fmt.Errorf("failed to delete service: %w", err)
@@ -1311,7 +1311,7 @@ func (s *PostgresStore) DeleteService(serviceID string) error {
 	return nil
 }
 
-func (s *PostgresStore) SetEndpoints(endpoints types.Endpoints) error {
+func (s *PostgresStateStore) SetEndpoints(endpoints types.Endpoints) error {
 	subsetsJSON, err := json.Marshal(endpoints.Subsets)
 	if err != nil {
 		return fmt.Errorf("failed to marshal subsets: %w", err)
@@ -1339,7 +1339,7 @@ func (s *PostgresStore) SetEndpoints(endpoints types.Endpoints) error {
 	return nil
 }
 
-func (s *PostgresStore) GetEndpoints(serviceID string) (types.Endpoints, error) {
+func (s *PostgresStateStore) GetEndpoints(serviceID string) (types.Endpoints, error) {
 	query := `
 		SELECT service_id, service_name, namespace, subsets, updated_at
 		FROM endpoints
@@ -1376,7 +1376,7 @@ func (s *PostgresStore) GetEndpoints(serviceID string) (types.Endpoints, error) 
 	return endpoints, nil
 }
 
-func (s *PostgresStore) GetEndpointsByServiceName(namespace, serviceName string) (types.Endpoints, error) {
+func (s *PostgresStateStore) GetEndpointsByServiceName(namespace, serviceName string) (types.Endpoints, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
@@ -1417,7 +1417,7 @@ func (s *PostgresStore) GetEndpointsByServiceName(namespace, serviceName string)
 	return endpoints, nil
 }
 
-func (s *PostgresStore) DeleteEndpoints(serviceID string) error {
+func (s *PostgresStateStore) DeleteEndpoints(serviceID string) error {
 	result, err := s.db.Exec("DELETE FROM endpoints WHERE service_id = $1", serviceID)
 	if err != nil {
 		return fmt.Errorf("failed to delete endpoints: %w", err)
@@ -1435,7 +1435,7 @@ func (s *PostgresStore) DeleteEndpoints(serviceID string) error {
 	return nil
 }
 
-func (s *PostgresStore) ListPodsByLabels(namespace string, labels map[string]string) ([]types.Pod, error) {
+func (s *PostgresStateStore) ListPodsByLabels(namespace string, labels map[string]string) ([]types.Pod, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
