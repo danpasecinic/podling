@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/danpasecinic/podling/internal/auth"
 	"github.com/danpasecinic/podling/internal/master/api"
 	"github.com/danpasecinic/podling/internal/master/scheduler"
 	"github.com/danpasecinic/podling/internal/master/services"
@@ -47,6 +49,14 @@ func main() {
 
 	go server.StartNodeExpirationChecker(ctx)
 
+	authConfig, authStore := initAuth()
+	authMiddleware := auth.NewMiddleware(authConfig, authStore)
+	authMiddleware.SetSkipPaths("/health", "/api/v1/auth/login", "/api/v1/auth/refresh")
+
+	if authConfig.Enabled {
+		bootstrapAdminUser(authStore, authConfig)
+	}
+
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
@@ -56,12 +66,23 @@ func main() {
 		"/health", func(c echo.Context) error {
 			return c.JSON(
 				http.StatusOK, map[string]string{
-					"status":  "ok",
-					"service": "podling-master",
+					"status":      "ok",
+					"service":     "podling-master",
+					"authEnabled": strconv.FormatBool(authConfig.Enabled),
 				},
 			)
 		},
 	)
+
+	e.Use(authMiddleware.Authenticate())
+
+	authHandlers := auth.NewAuthHandlers(
+		authStore,
+		authMiddleware.JWTManager(),
+		authMiddleware.APIKeyManager(),
+		authConfig,
+	)
+	authHandlers.RegisterRoutes(e, authMiddleware)
 
 	server.RegisterRoutes(e)
 
@@ -121,7 +142,79 @@ func initStore() (state.StateStore, func() error) {
 	}
 }
 
-// maskPassword masks the password in a database URL for logging
 func maskPassword() string {
 	return "***masked***"
+}
+
+func initAuth() (auth.Config, auth.AuthStore) {
+	config := auth.DefaultConfig()
+
+	if enabled := os.Getenv("AUTH_ENABLED"); enabled == "true" || enabled == "1" {
+		config.Enabled = true
+	}
+
+	config.JWTSecret = os.Getenv("JWT_SECRET")
+	if config.JWTSecret == "" {
+		config.JWTSecret = "podling-default-secret-change-in-production"
+	}
+
+	config.APIKeySecret = os.Getenv("API_KEY_SECRET")
+	if config.APIKeySecret == "" {
+		config.APIKeySecret = "podling-apikey-secret-change-in-production"
+	}
+
+	if expiry := os.Getenv("TOKEN_EXPIRY"); expiry != "" {
+		if d, err := time.ParseDuration(expiry); err == nil {
+			config.TokenExpiry = d
+		}
+	}
+
+	authStore := auth.NewInMemoryAuthStore()
+
+	if config.Enabled {
+		log.Println("authentication enabled")
+	} else {
+		log.Println("authentication disabled (set AUTH_ENABLED=true to enable)")
+	}
+
+	return config, authStore
+}
+
+func bootstrapAdminUser(authStore auth.AuthStore, config auth.Config) {
+	username := os.Getenv("ADMIN_USERNAME")
+	if username == "" {
+		username = "admin"
+	}
+
+	password := os.Getenv("ADMIN_PASSWORD")
+	if password == "" {
+		password = "admin123"
+		log.Println("WARNING: using default admin password. Set ADMIN_PASSWORD environment variable in production")
+	}
+
+	_, err := authStore.GetUserByUsername(username)
+	if err == nil {
+		return
+	}
+
+	passwordHash, err := auth.HashPassword(password)
+	if err != nil {
+		log.Printf("failed to hash admin password: %v", err)
+		return
+	}
+
+	user := auth.User{
+		ID:           "user-admin-bootstrap",
+		Username:     username,
+		PasswordHash: passwordHash,
+		Role:         auth.RoleAdmin,
+		CreatedAt:    time.Now(),
+	}
+
+	if err := authStore.AddUser(user); err != nil {
+		log.Printf("failed to create admin user: %v", err)
+		return
+	}
+
+	log.Printf("admin user '%s' created successfully", username)
 }
