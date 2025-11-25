@@ -209,7 +209,7 @@ func (c *Client) GetTask(taskID string) (*types.Task, error) {
 }
 
 func (c *Client) ListNodes() ([]types.Node, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/nodes")
+	resp, err := c.get(c.baseURL + "/api/v1/nodes")
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -265,7 +265,7 @@ func (c *Client) GetTaskLogs(task *types.Task, tail int) (string, error) {
 
 	// Get logs from worker
 	url := fmt.Sprintf("%s/api/v1/tasks/%s/logs?tail=%d", workerURL, task.TaskID, tail)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.get(url)
 	if err != nil {
 		return "", fmt.Errorf("get request: %w", err)
 	}
@@ -312,11 +312,7 @@ func (c *Client) CreatePod(name, namespace string, labels map[string]string, con
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(
-		c.baseURL+"/api/v1/pods",
-		"application/json",
-		bytes.NewReader(data),
-	)
+	resp, err := c.post(c.baseURL+"/api/v1/pods", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("post request: %w", err)
 	}
@@ -335,9 +331,8 @@ func (c *Client) CreatePod(name, namespace string, labels map[string]string, con
 	return &pod, nil
 }
 
-// ListPods retrieves all pods from the master
 func (c *Client) ListPods() ([]types.Pod, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/pods")
+	resp, err := c.get(c.baseURL + "/api/v1/pods")
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -356,9 +351,8 @@ func (c *Client) ListPods() ([]types.Pod, error) {
 	return pods, nil
 }
 
-// GetPod retrieves a specific pod by ID
 func (c *Client) GetPod(podID string) (*types.Pod, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/pods/" + podID)
+	resp, err := c.get(c.baseURL + "/api/v1/pods/" + podID)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -398,7 +392,7 @@ func (c *Client) GetPodLogs(podID string, containerName string, tail int) (map[s
 		url += "&container=" + containerName
 	}
 
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.get(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -419,14 +413,8 @@ func (c *Client) GetPodLogs(podID string, containerName string, tail int) (map[s
 	return result.Logs, nil
 }
 
-// DeletePod deletes a pod by ID
 func (c *Client) DeletePod(podID string) error {
-	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v1/pods/"+podID, nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.delete(c.baseURL + "/api/v1/pods/" + podID)
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}
@@ -472,11 +460,7 @@ func (c *Client) CreateService(
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(
-		c.baseURL+"/api/v1/services",
-		"application/json",
-		bytes.NewReader(data),
-	)
+	resp, err := c.post(c.baseURL+"/api/v1/services", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("post request: %w", err)
 	}
@@ -495,14 +479,13 @@ func (c *Client) CreateService(
 	return &service, nil
 }
 
-// ListServices retrieves all services, optionally filtered by namespace
 func (c *Client) ListServices(namespace string) ([]types.Service, error) {
 	url := c.baseURL + "/api/v1/services"
 	if namespace != "" {
 		url += "?namespace=" + namespace
 	}
 
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.get(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -521,9 +504,8 @@ func (c *Client) ListServices(namespace string) ([]types.Service, error) {
 	return services, nil
 }
 
-// GetService retrieves a specific service by ID
 func (c *Client) GetService(serviceID string) (*types.Service, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/services/" + serviceID)
+	resp, err := c.get(c.baseURL + "/api/v1/services/" + serviceID)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -542,9 +524,8 @@ func (c *Client) GetService(serviceID string) (*types.Service, error) {
 	return &service, nil
 }
 
-// GetEndpoints retrieves endpoints for a specific service
 func (c *Client) GetEndpoints(serviceID string) (*types.Endpoints, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/services/" + serviceID + "/endpoints")
+	resp, err := c.get(c.baseURL + "/api/v1/services/" + serviceID + "/endpoints")
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -563,14 +544,8 @@ func (c *Client) GetEndpoints(serviceID string) (*types.Endpoints, error) {
 	return &endpoints, nil
 }
 
-// DeleteService deletes a service by ID
 func (c *Client) DeleteService(serviceID string) error {
-	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v1/services/"+serviceID, nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.delete(c.baseURL + "/api/v1/services/" + serviceID)
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}
@@ -584,14 +559,8 @@ func (c *Client) DeleteService(serviceID string) error {
 	return nil
 }
 
-// Prune removes unused resources and returns a summary of the operation
 func (c *Client) Prune() (*types.PruneResult, error) {
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v1/prune", nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.post(c.baseURL+"/api/v1/prune", nil)
 	if err != nil {
 		return nil, fmt.Errorf("prune request: %w", err)
 	}
@@ -610,14 +579,8 @@ func (c *Client) Prune() (*types.PruneResult, error) {
 	return &result, nil
 }
 
-// PruneAll removes all resources from the system
 func (c *Client) PruneAll() (*types.PruneResult, error) {
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v1/prune?all=true", nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.post(c.baseURL+"/api/v1/prune?all=true", nil)
 	if err != nil {
 		return nil, fmt.Errorf("prune request: %w", err)
 	}
