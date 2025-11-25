@@ -13,19 +13,16 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
-// Client wraps Docker SDK functionality for container management.
 type Client struct {
 	cli *client.Client
 }
 
-// PortMapping represents a mapping between container and host ports.
 type PortMapping struct {
 	ContainerPort int
 	HostPort      int
 	Protocol      string
 }
 
-// NewClient creates a new Docker client.
 func NewClient() (*Client, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -34,7 +31,6 @@ func NewClient() (*Client, error) {
 	return &Client{cli: cli}, nil
 }
 
-// Close closes the Docker client connection.
 func (c *Client) Close() error {
 	if c.cli != nil {
 		return c.cli.Close()
@@ -42,7 +38,6 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// PullImage pulls a Docker image from a registry.
 func (c *Client) PullImage(ctx context.Context, imageName string) error {
 	reader, err := c.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
@@ -59,7 +54,6 @@ func (c *Client) PullImage(ctx context.Context, imageName string) error {
 	return nil
 }
 
-// CreateContainer creates a new container with the given configuration.
 func (c *Client) CreateContainer(ctx context.Context, imageName string, env []string) (string, error) {
 	config := &container.Config{
 		Image: imageName,
@@ -77,9 +71,6 @@ func (c *Client) CreateContainer(ctx context.Context, imageName string, env []st
 	return resp.ID, nil
 }
 
-// CreateContainerWithResources creates a new container with resource limits.
-// cpuQuota is in Docker format (e.g., 0.5 for half a core, 2.0 for two cores).
-// memoryLimit is in bytes (0 means no limit).
 func (c *Client) CreateContainerWithResources(
 	ctx context.Context, imageName string, env []string, cpuQuota float64, memoryLimit int64,
 ) (string, error) {
@@ -110,7 +101,6 @@ func (c *Client) CreateContainerWithResources(
 	return resp.ID, nil
 }
 
-// CreateContainerWithResourcesAndPorts creates a container with resource limits and port mappings
 func (c *Client) CreateContainerWithResourcesAndPorts(
 	ctx context.Context, imageName string, env []string,
 	cpuQuota float64, memoryLimit int64, ports []PortMapping,
@@ -164,7 +154,6 @@ func (c *Client) CreateContainerWithResourcesAndPorts(
 	return resp.ID, nil
 }
 
-// StartContainer starts a container by ID.
 func (c *Client) StartContainer(ctx context.Context, containerID string) error {
 	err := c.cli.ContainerStart(ctx, containerID, container.StartOptions{})
 	if err != nil {
@@ -173,7 +162,6 @@ func (c *Client) StartContainer(ctx context.Context, containerID string) error {
 	return nil
 }
 
-// StopContainer stops a running container.
 func (c *Client) StopContainer(ctx context.Context, containerID string) error {
 	timeout := 10 // seconds
 	err := c.cli.ContainerStop(ctx, containerID, container.StopOptions{Timeout: &timeout})
@@ -183,7 +171,6 @@ func (c *Client) StopContainer(ctx context.Context, containerID string) error {
 	return nil
 }
 
-// RemoveContainer removes a container by ID.
 func (c *Client) RemoveContainer(ctx context.Context, containerID string) error {
 	err := c.cli.ContainerRemove(ctx, containerID, container.RemoveOptions{Force: true})
 	if err != nil {
@@ -192,7 +179,6 @@ func (c *Client) RemoveContainer(ctx context.Context, containerID string) error 
 	return nil
 }
 
-// GetContainerStatus returns the current status of a container.
 func (c *Client) GetContainerStatus(ctx context.Context, containerID string) (string, error) {
 	inspect, err := c.cli.ContainerInspect(ctx, containerID)
 	if err != nil {
@@ -201,7 +187,6 @@ func (c *Client) GetContainerStatus(ctx context.Context, containerID string) (st
 	return inspect.State.Status, nil
 }
 
-// WaitContainer waits for a container to finish and returns the exit code.
 func (c *Client) WaitContainer(ctx context.Context, containerID string) (int64, error) {
 	statusCh, errCh := c.cli.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
 	select {
@@ -215,7 +200,6 @@ func (c *Client) WaitContainer(ctx context.Context, containerID string) (int64, 
 	return 0, nil
 }
 
-// GetContainerLogs retrieves logs from a container.
 func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail int) (string, error) {
 	options := container.LogsOptions{
 		ShowStdout: true,
@@ -238,7 +222,6 @@ func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail 
 	return buf.String(), nil
 }
 
-// ExecInContainer executes a command in a running container
 func (c *Client) ExecInContainer(ctx context.Context, containerID string, cmd []string) (int, string, error) {
 	execConfig := container.ExecOptions{
 		AttachStdout: true,
@@ -271,7 +254,6 @@ func (c *Client) ExecInContainer(ctx context.Context, containerID string, cmd []
 	return inspectResp.ExitCode, buf.String(), nil
 }
 
-// GetContainerIP returns the IP address of a container
 func (c *Client) GetContainerIP(ctx context.Context, containerID string) (string, error) {
 	inspect, err := c.cli.ContainerInspect(ctx, containerID)
 	if err != nil {
@@ -294,8 +276,6 @@ func (c *Client) GetContainerIP(ctx context.Context, containerID string) (string
 	return "", fmt.Errorf("no IP address found for container %s", containerID)
 }
 
-// CreatePodNetwork creates a dedicated Docker bridge network for a pod
-// All containers in the pod will be attached to this network, sharing the same namespace
 func (c *Client) CreatePodNetwork(ctx context.Context, podID string) (string, error) {
 	networkName := fmt.Sprintf("pod-%s", podID)
 
@@ -317,7 +297,6 @@ func (c *Client) CreatePodNetwork(ctx context.Context, podID string) (string, er
 	return createResp.ID, nil
 }
 
-// RemovePodNetwork removes a pod's network
 func (c *Client) RemovePodNetwork(ctx context.Context, networkID string) error {
 	if err := c.cli.NetworkRemove(ctx, networkID); err != nil {
 		return fmt.Errorf("failed to remove network %s: %w", networkID, err)
@@ -325,7 +304,6 @@ func (c *Client) RemovePodNetwork(ctx context.Context, networkID string) error {
 	return nil
 }
 
-// ConnectContainerToNetwork attaches a container to a network
 func (c *Client) ConnectContainerToNetwork(ctx context.Context, networkID, containerID string) error {
 	if err := c.cli.NetworkConnect(ctx, networkID, containerID, nil); err != nil {
 		return fmt.Errorf("failed to connect container %s to network %s: %w", containerID, networkID, err)
@@ -333,7 +311,6 @@ func (c *Client) ConnectContainerToNetwork(ctx context.Context, networkID, conta
 	return nil
 }
 
-// GetNetworkIP returns the IP address of a container in a specific network
 func (c *Client) GetNetworkIP(ctx context.Context, containerID, networkID string) (string, error) {
 	networkInfo, err := c.cli.NetworkInspect(ctx, networkID, network.InspectOptions{})
 	if err != nil {
@@ -363,7 +340,6 @@ func (c *Client) GetNetworkIP(ctx context.Context, containerID, networkID string
 	return "", fmt.Errorf("container %s not connected to network %s", containerID, networkID)
 }
 
-// CreateContainerInNetwork creates a container attached to a specific network
 func (c *Client) CreateContainerInNetwork(
 	ctx context.Context, imageName string, env []string, networkID string,
 ) (string, error) {
@@ -389,7 +365,6 @@ func (c *Client) CreateContainerInNetwork(
 	return resp.ID, nil
 }
 
-// CreateContainerInNetworkWithResources creates a container with resource limits in a specific network
 func (c *Client) CreateContainerInNetworkWithResources(
 	ctx context.Context, imageName string, env []string, networkID string, cpuQuota float64, memoryLimit int64,
 ) (string, error) {
@@ -425,7 +400,6 @@ func (c *Client) CreateContainerInNetworkWithResources(
 	return resp.ID, nil
 }
 
-// CreateContainerInNetworkWithResourcesAndPorts creates a container with resource limits and port mappings in a specific network
 func (c *Client) CreateContainerInNetworkWithResourcesAndPorts(
 	ctx context.Context, imageName string, env []string, networkID string,
 	cpuQuota float64, memoryLimit int64, ports []PortMapping,

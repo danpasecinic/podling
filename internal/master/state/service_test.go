@@ -8,7 +8,7 @@ import (
 )
 
 func TestAddAndGetService(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	service := types.Service{
 		ServiceID: "svc-1",
@@ -57,7 +57,7 @@ func TestAddAndGetService(t *testing.T) {
 }
 
 func TestAddDuplicateService(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	service := types.Service{
 		ServiceID: "svc-1",
@@ -81,7 +81,7 @@ func TestAddDuplicateService(t *testing.T) {
 }
 
 func TestGetNonexistentService(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	_, err := store.GetService("nonexistent")
 	if err != ErrServiceNotFound {
@@ -90,7 +90,7 @@ func TestGetNonexistentService(t *testing.T) {
 }
 
 func TestGetServiceByName(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	service := types.Service{
 		ServiceID: "svc-1",
@@ -142,7 +142,7 @@ func TestGetServiceByName(t *testing.T) {
 }
 
 func TestUpdateService(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	service := types.Service{
 		ServiceID: "svc-1",
@@ -202,7 +202,7 @@ func TestUpdateService(t *testing.T) {
 }
 
 func TestListServices(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	// Add services in different namespaces
 	services := []types.Service{
@@ -268,7 +268,7 @@ func TestListServices(t *testing.T) {
 }
 
 func TestDeleteService(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	service := types.Service{
 		ServiceID: "svc-1",
@@ -304,7 +304,7 @@ func TestDeleteService(t *testing.T) {
 }
 
 func TestSetAndGetEndpoints(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	endpoints := types.Endpoints{
 		ServiceID:   "svc-1",
@@ -347,7 +347,7 @@ func TestSetAndGetEndpoints(t *testing.T) {
 }
 
 func TestGetEndpointsByServiceName(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	endpoints := types.Endpoints{
 		ServiceID:   "svc-1",
@@ -382,7 +382,7 @@ func TestGetEndpointsByServiceName(t *testing.T) {
 }
 
 func TestDeleteEndpoints(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	endpoints := types.Endpoints{
 		ServiceID:   "svc-1",
@@ -410,7 +410,7 @@ func TestDeleteEndpoints(t *testing.T) {
 }
 
 func TestListPodsByLabels(t *testing.T) {
-	store := NewInMemoryStore()
+	store := NewMockStateStore()
 
 	// Add pods with different labels
 	pods := []types.Pod{

@@ -15,7 +15,6 @@ var serviceCmd = &cobra.Command{
 	Long:  `Create, list, inspect, and delete services for pod discovery and load balancing.`,
 }
 
-// Service create command flags
 var (
 	serviceCreateNamespace string
 	serviceCreateLabels    []string
@@ -289,16 +288,13 @@ var serviceDeleteCmd = &cobra.Command{
 }
 
 func init() {
-	// Add service command to root
 	rootCmd.AddCommand(serviceCmd)
 
-	// Add subcommands
 	serviceCmd.AddCommand(serviceCreateCmd)
 	serviceCmd.AddCommand(serviceListCmd)
 	serviceCmd.AddCommand(serviceGetCmd)
 	serviceCmd.AddCommand(serviceDeleteCmd)
 
-	// Create command flags
 	serviceCreateCmd.Flags().StringVar(&serviceCreateNamespace, "namespace", "default", "Namespace for the service")
 	serviceCreateCmd.Flags().StringSliceVar(&serviceCreateLabels, "label", []string{}, "Labels for the service (can be specified multiple times)")
 	serviceCreateCmd.Flags().StringSliceVar(&serviceCreateSelectors, "selector", []string{}, "Pod selector (can be specified multiple times)")
@@ -306,11 +302,9 @@ func init() {
 	serviceCreateCmd.Flags().StringVar(&serviceType, "type", "ClusterIP", "Service type (ClusterIP, NodePort, LoadBalancer)")
 	serviceCreateCmd.Flags().StringVar(&serviceSessionAffinity, "session-affinity", "", "Session affinity (None or ClientIP)")
 
-	// List command flags
 	serviceListCmd.Flags().StringVar(&serviceCreateNamespace, "namespace", "", "Filter by namespace (empty for all)")
 }
 
-// parsePortSpec parses a port specification in the format [name:]port[:targetPort]
 func parsePortSpec(spec string) (types.ServicePort, error) {
 	parts := strings.Split(spec, ":")
 
@@ -366,7 +360,6 @@ func parsePortSpec(spec string) (types.ServicePort, error) {
 	return port, nil
 }
 
-// formatServicePorts formats service ports for display
 func formatServicePorts(ports []types.ServicePort) string {
 	if len(ports) == 0 {
 		return "None"

@@ -15,7 +15,7 @@ import (
 )
 
 func setupTestServer() (*Server, *echo.Echo) {
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)

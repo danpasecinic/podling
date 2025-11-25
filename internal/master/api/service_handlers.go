@@ -8,7 +8,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// CreateServiceRequest represents a request to create a new service
 type CreateServiceRequest struct {
 	Name            string              `json:"name" validate:"required"`
 	Namespace       string              `json:"namespace"`
@@ -20,7 +19,6 @@ type CreateServiceRequest struct {
 	SessionAffinity string              `json:"sessionAffinity"`
 }
 
-// UpdateServiceRequest represents a request to update a service
 type UpdateServiceRequest struct {
 	Selector        *map[string]string   `json:"selector"`
 	Ports           *[]types.ServicePort `json:"ports"`
@@ -29,8 +27,6 @@ type UpdateServiceRequest struct {
 	SessionAffinity *string              `json:"sessionAffinity"`
 }
 
-// CreateService handles POST /api/v1/services
-// Creates a new service and allocates a ClusterIP if needed
 func (s *Server) CreateService(c echo.Context) error {
 	var req CreateServiceRequest
 	if err := c.Bind(&req); err != nil {
@@ -102,8 +98,6 @@ func (s *Server) CreateService(c echo.Context) error {
 	return c.JSON(http.StatusCreated, service)
 }
 
-// ListServices handles GET /api/v1/services
-// Returns all services, optionally filtered by namespace
 func (s *Server) ListServices(c echo.Context) error {
 	namespace := c.QueryParam("namespace")
 
@@ -115,8 +109,6 @@ func (s *Server) ListServices(c echo.Context) error {
 	return c.JSON(http.StatusOK, services)
 }
 
-// GetService handles GET /api/v1/services/:id
-// Returns details for a specific service
 func (s *Server) GetService(c echo.Context) error {
 	serviceID := c.Param("id")
 
@@ -128,8 +120,6 @@ func (s *Server) GetService(c echo.Context) error {
 	return c.JSON(http.StatusOK, service)
 }
 
-// UpdateService handles PUT /api/v1/services/:id
-// Updates a service's configuration
 func (s *Server) UpdateService(c echo.Context) error {
 	serviceID := c.Param("id")
 
@@ -154,8 +144,6 @@ func (s *Server) UpdateService(c echo.Context) error {
 	return c.JSON(http.StatusOK, service)
 }
 
-// DeleteService handles DELETE /api/v1/services/:id
-// Deletes a service and its endpoints
 func (s *Server) DeleteService(c echo.Context) error {
 	serviceID := c.Param("id")
 
@@ -177,8 +165,6 @@ func (s *Server) DeleteService(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "service deleted"})
 }
 
-// GetEndpoints handles GET /api/v1/services/:id/endpoints
-// Returns the endpoints for a specific service
 func (s *Server) GetEndpoints(c echo.Context) error {
 	serviceID := c.Param("id")
 

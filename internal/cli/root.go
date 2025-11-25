@@ -11,6 +11,8 @@ var (
 	cfgFile   string
 	masterURL string
 	verbose   bool
+	apiKey    string
+	token     string
 )
 
 var rootCmd = &cobra.Command{
@@ -23,7 +25,6 @@ via Docker, and this CLI tool for interacting with the system.`,
 	Version: "0.1.0",
 }
 
-// Execute executes the root command.
 func Execute() error {
 	return rootCmd.Execute()
 }
@@ -34,6 +35,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.podling.yaml)")
 	rootCmd.PersistentFlags().StringVar(&masterURL, "master", "http://localhost:8080", "master API URL")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "API key for authentication")
+	rootCmd.PersistentFlags().StringVar(&token, "token", "", "JWT token for authentication")
 }
 
 func initConfig() {
@@ -44,14 +47,38 @@ func initConfig() {
 	if envMaster := os.Getenv("PODLING_MASTER_URL"); envMaster != "" && masterURL == "http://localhost:8080" {
 		masterURL = envMaster
 	}
+
+	if apiKey == "" {
+		apiKey = os.Getenv("PODLING_API_KEY")
+	}
+
+	if token == "" {
+		token = os.Getenv("PODLING_TOKEN")
+	}
 }
 
-// GetMasterURL returns the configured master URL
 func GetMasterURL() string {
 	return masterURL
 }
 
-// IsVerbose returns whether verbose mode is enabled
 func IsVerbose() bool {
 	return verbose
+}
+
+func GetAPIKey() string {
+	return apiKey
+}
+
+func GetToken() string {
+	return token
+}
+
+func NewAuthenticatedClient() *Client {
+	client := NewClient(masterURL)
+	if token != "" {
+		client.SetToken(token)
+	} else if apiKey != "" {
+		client.SetAPIKey(apiKey)
+	}
+	return client
 }

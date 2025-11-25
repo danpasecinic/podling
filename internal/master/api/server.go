@@ -12,14 +12,12 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Server handles HTTP requests for the master API.
 type Server struct {
 	store              state.StateStore
 	scheduler          scheduler.Scheduler
 	endpointController *services.EndpointController
 }
 
-// NewServer creates a new API server with the given state store and scheduler.
 func NewServer(
 	store state.StateStore, sched scheduler.Scheduler, endpointController *services.EndpointController,
 ) *Server {
@@ -30,8 +28,6 @@ func NewServer(
 	}
 }
 
-// RegisterRoutes registers all API endpoints with the Echo router.
-// Routes are grouped under /api/v1 for versioning.
 func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1 := e.Group("/api/v1")
 
@@ -66,7 +62,6 @@ func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1.POST("/prune", s.Prune)
 }
 
-// StartNodeExpirationChecker runs a background job to mark stale nodes as offline
 func (s *Server) StartNodeExpirationChecker(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()

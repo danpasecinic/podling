@@ -9,15 +9,12 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
-// TCPProbe performs TCP health checks
 type TCPProbe struct{}
 
-// NewTCPProbe creates a new TCP probe
 func NewTCPProbe() *TCPProbe {
 	return &TCPProbe{}
 }
 
-// Check performs a TCP connection check
 func (p *TCPProbe) Check(ctx context.Context, check *types.HealthCheck, containerIP string) types.ProbeResult {
 	result := types.ProbeResult{
 		Success:   false,

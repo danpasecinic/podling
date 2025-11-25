@@ -9,9 +9,7 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
-// getTestPostgresStore creates a test PostgreSQL store
-// Skips the test if TEST_DATABASE_URL is not set
-func getTestPostgresStore(t *testing.T) *PostgresStore {
+func getTestPostgresStateStore(t *testing.T) *PostgresStateStore {
 	t.Helper()
 
 	dbURL := os.Getenv("TEST_DATABASE_URL")
@@ -19,7 +17,7 @@ func getTestPostgresStore(t *testing.T) *PostgresStore {
 		t.Skip("TEST_DATABASE_URL not set, skipping PostgreSQL tests")
 	}
 
-	store, err := NewPostgresStore(dbURL)
+	store, err := NewPostgresStateStore(dbURL)
 	if err != nil {
 		t.Fatalf("failed to create test store: %v", err)
 	}
@@ -38,8 +36,8 @@ func getTestPostgresStore(t *testing.T) *PostgresStore {
 	return store
 }
 
-func TestPostgresStore_AddTask(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_AddTask(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	task := types.Task{
 		TaskID:    "test-task-1",
@@ -62,8 +60,8 @@ func TestPostgresStore_AddTask(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_GetTask(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_GetTask(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	task := types.Task{
 		TaskID:    "test-task-2",
@@ -108,8 +106,8 @@ func TestPostgresStore_GetTask(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_UpdateTask(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_UpdateTask(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	task := types.Task{
 		TaskID:    "test-task-3",
@@ -149,8 +147,8 @@ func TestPostgresStore_UpdateTask(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_ListTasks(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_ListTasks(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	for i := 1; i <= 3; i++ {
 		task := types.Task{
@@ -176,8 +174,8 @@ func TestPostgresStore_ListTasks(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_AddNode(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_AddNode(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	node := types.Node{
 		NodeID:        "node-1",
@@ -205,8 +203,8 @@ func TestPostgresStore_AddNode(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_GetNode(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_GetNode(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	node := types.Node{
 		NodeID:        "node-2",
@@ -259,8 +257,8 @@ func TestPostgresStore_GetNode(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_UpdateNode(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_UpdateNode(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	node := types.Node{
 		NodeID:        "node-3",
@@ -303,8 +301,8 @@ func TestPostgresStore_UpdateNode(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_GetAvailableNodes(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_GetAvailableNodes(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	node1 := types.Node{
 		NodeID:        "node-avail-1",
@@ -373,8 +371,8 @@ func TestPostgresStore_GetAvailableNodes(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_ListNodes(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_ListNodes(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	nodes := []types.Node{
 		{
@@ -444,8 +442,8 @@ func TestPostgresStore_ListNodes(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_UpdateTask_AllFields(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_UpdateTask_AllFields(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	task := types.Task{
 		TaskID:    "test-task-update-all",
@@ -501,8 +499,8 @@ func TestPostgresStore_UpdateTask_AllFields(t *testing.T) {
 	}
 }
 
-func TestPostgresStore_UpdateNode_AllFields(t *testing.T) {
-	store := getTestPostgresStore(t)
+func TestPostgresStateStore_UpdateNode_AllFields(t *testing.T) {
+	store := getTestPostgresStateStore(t)
 
 	node := types.Node{
 		NodeID:        "node-update-all",

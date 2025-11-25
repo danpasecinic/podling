@@ -13,13 +13,13 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
-// Client represents a Podling client
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	token      string
+	apiKey     string
 }
 
-// NewClient creates a new Podling client with the given base URL
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
@@ -29,7 +29,52 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// CreateTask creates a new task with the given parameters
+func (c *Client) SetToken(token string) {
+	c.token = token
+}
+
+func (c *Client) SetAPIKey(apiKey string) {
+	c.apiKey = apiKey
+}
+
+func (c *Client) addAuthHeader(req *http.Request) {
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	} else if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+}
+
+func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
+	c.addAuthHeader(req)
+	return c.httpClient.Do(req)
+}
+
+func (c *Client) get(url string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.doRequest(req)
+}
+
+func (c *Client) post(url string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return c.doRequest(req)
+}
+
+func (c *Client) delete(url string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.doRequest(req)
+}
+
 func (c *Client) CreateTask(name, image string, env map[string]string) (*types.Task, error) {
 	payload := map[string]interface{}{
 		"name":  name,
@@ -42,11 +87,7 @@ func (c *Client) CreateTask(name, image string, env map[string]string) (*types.T
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(
-		c.baseURL+"/api/v1/tasks",
-		"application/json",
-		bytes.NewReader(data),
-	)
+	resp, err := c.post(c.baseURL+"/api/v1/tasks", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("post request: %w", err)
 	}
@@ -65,7 +106,6 @@ func (c *Client) CreateTask(name, image string, env map[string]string) (*types.T
 	return &task, nil
 }
 
-// CreateTaskWithPorts creates a new task with specified port mappings
 func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, portSpecs []string) (
 	*types.Task,
 	error,
@@ -108,11 +148,7 @@ func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, 
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(
-		c.baseURL+"/api/v1/tasks",
-		"application/json",
-		bytes.NewReader(data),
-	)
+	resp, err := c.post(c.baseURL+"/api/v1/tasks", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("post request: %w", err)
 	}
@@ -131,9 +167,8 @@ func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, 
 	return &task, nil
 }
 
-// ListTasks retrieves all tasks from the master
 func (c *Client) ListTasks() ([]types.Task, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/tasks")
+	resp, err := c.get(c.baseURL + "/api/v1/tasks")
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -152,9 +187,8 @@ func (c *Client) ListTasks() ([]types.Task, error) {
 	return tasks, nil
 }
 
-// GetTask retrieves a specific task by ID
 func (c *Client) GetTask(taskID string) (*types.Task, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/tasks/" + taskID)
+	resp, err := c.get(c.baseURL + "/api/v1/tasks/" + taskID)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -174,7 +208,7 @@ func (c *Client) GetTask(taskID string) (*types.Task, error) {
 }
 
 func (c *Client) ListNodes() ([]types.Node, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/nodes")
+	resp, err := c.get(c.baseURL + "/api/v1/nodes")
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -193,7 +227,6 @@ func (c *Client) ListNodes() ([]types.Node, error) {
 	return nodes, nil
 }
 
-// GetNode retrieves a specific node by ID
 func (c *Client) GetNode(nodeID string) (*types.Node, error) {
 	nodes, err := c.ListNodes()
 	if err != nil {
@@ -230,7 +263,7 @@ func (c *Client) GetTaskLogs(task *types.Task, tail int) (string, error) {
 
 	// Get logs from worker
 	url := fmt.Sprintf("%s/api/v1/tasks/%s/logs?tail=%d", workerURL, task.TaskID, tail)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.get(url)
 	if err != nil {
 		return "", fmt.Errorf("get request: %w", err)
 	}
@@ -254,7 +287,6 @@ func (c *Client) GetTaskLogs(task *types.Task, tail int) (string, error) {
 	return logs, nil
 }
 
-// CreatePod creates a new pod with the given containers
 func (c *Client) CreatePod(name, namespace string, labels map[string]string, containers []types.Container) (
 	*types.Pod,
 	error,
@@ -277,11 +309,7 @@ func (c *Client) CreatePod(name, namespace string, labels map[string]string, con
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(
-		c.baseURL+"/api/v1/pods",
-		"application/json",
-		bytes.NewReader(data),
-	)
+	resp, err := c.post(c.baseURL+"/api/v1/pods", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("post request: %w", err)
 	}
@@ -300,9 +328,8 @@ func (c *Client) CreatePod(name, namespace string, labels map[string]string, con
 	return &pod, nil
 }
 
-// ListPods retrieves all pods from the master
 func (c *Client) ListPods() ([]types.Pod, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/pods")
+	resp, err := c.get(c.baseURL + "/api/v1/pods")
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -321,9 +348,8 @@ func (c *Client) ListPods() ([]types.Pod, error) {
 	return pods, nil
 }
 
-// GetPod retrieves a specific pod by ID
 func (c *Client) GetPod(podID string) (*types.Pod, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/pods/" + podID)
+	resp, err := c.get(c.baseURL + "/api/v1/pods/" + podID)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -342,7 +368,6 @@ func (c *Client) GetPod(podID string) (*types.Pod, error) {
 	return &pod, nil
 }
 
-// GetPodLogs retrieves logs from a pod's containers
 func (c *Client) GetPodLogs(podID string, containerName string, tail int) (map[string]string, error) {
 	pod, err := c.GetPod(podID)
 	if err != nil {
@@ -363,7 +388,7 @@ func (c *Client) GetPodLogs(podID string, containerName string, tail int) (map[s
 		url += "&container=" + containerName
 	}
 
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.get(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -384,14 +409,8 @@ func (c *Client) GetPodLogs(podID string, containerName string, tail int) (map[s
 	return result.Logs, nil
 }
 
-// DeletePod deletes a pod by ID
 func (c *Client) DeletePod(podID string) error {
-	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v1/pods/"+podID, nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.delete(c.baseURL + "/api/v1/pods/" + podID)
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}
@@ -405,7 +424,6 @@ func (c *Client) DeletePod(podID string) error {
 	return nil
 }
 
-// CreateService creates a new service
 func (c *Client) CreateService(
 	name, namespace string, selector map[string]string, ports []types.ServicePort, labels map[string]string,
 	serviceType, sessionAffinity string,
@@ -437,11 +455,7 @@ func (c *Client) CreateService(
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(
-		c.baseURL+"/api/v1/services",
-		"application/json",
-		bytes.NewReader(data),
-	)
+	resp, err := c.post(c.baseURL+"/api/v1/services", bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("post request: %w", err)
 	}
@@ -460,14 +474,13 @@ func (c *Client) CreateService(
 	return &service, nil
 }
 
-// ListServices retrieves all services, optionally filtered by namespace
 func (c *Client) ListServices(namespace string) ([]types.Service, error) {
 	url := c.baseURL + "/api/v1/services"
 	if namespace != "" {
 		url += "?namespace=" + namespace
 	}
 
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.get(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -486,9 +499,8 @@ func (c *Client) ListServices(namespace string) ([]types.Service, error) {
 	return services, nil
 }
 
-// GetService retrieves a specific service by ID
 func (c *Client) GetService(serviceID string) (*types.Service, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/services/" + serviceID)
+	resp, err := c.get(c.baseURL + "/api/v1/services/" + serviceID)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -507,9 +519,8 @@ func (c *Client) GetService(serviceID string) (*types.Service, error) {
 	return &service, nil
 }
 
-// GetEndpoints retrieves endpoints for a specific service
 func (c *Client) GetEndpoints(serviceID string) (*types.Endpoints, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/services/" + serviceID + "/endpoints")
+	resp, err := c.get(c.baseURL + "/api/v1/services/" + serviceID + "/endpoints")
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -528,14 +539,8 @@ func (c *Client) GetEndpoints(serviceID string) (*types.Endpoints, error) {
 	return &endpoints, nil
 }
 
-// DeleteService deletes a service by ID
 func (c *Client) DeleteService(serviceID string) error {
-	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v1/services/"+serviceID, nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.delete(c.baseURL + "/api/v1/services/" + serviceID)
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}
@@ -549,14 +554,8 @@ func (c *Client) DeleteService(serviceID string) error {
 	return nil
 }
 
-// Prune removes unused resources and returns a summary of the operation
 func (c *Client) Prune() (*types.PruneResult, error) {
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v1/prune", nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.post(c.baseURL+"/api/v1/prune", nil)
 	if err != nil {
 		return nil, fmt.Errorf("prune request: %w", err)
 	}
@@ -575,14 +574,8 @@ func (c *Client) Prune() (*types.PruneResult, error) {
 	return &result, nil
 }
 
-// PruneAll removes all resources from the system
 func (c *Client) PruneAll() (*types.PruneResult, error) {
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v1/prune?all=true", nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.post(c.baseURL+"/api/v1/prune?all=true", nil)
 	if err != nil {
 		return nil, fmt.Errorf("prune request: %w", err)
 	}
@@ -599,4 +592,73 @@ func (c *Client) PruneAll() (*types.PruneResult, error) {
 	}
 
 	return &result, nil
+}
+
+type LoginResponse struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refreshToken"`
+	ExpiresAt    string `json:"expiresAt"`
+	User         struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+		Role     string `json:"role"`
+	} `json:"user"`
+}
+
+func (c *Client) Login(username, password string) (*LoginResponse, error) {
+	payload := map[string]string{
+		"username": username,
+		"password": password,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v1/auth/login", bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("post request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("login failed: %s", string(body))
+	}
+
+	var loginResp LoginResponse
+	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	c.token = loginResp.Token
+
+	return &loginResp, nil
+}
+
+func (c *Client) GetCurrentUser() (map[string]interface{}, error) {
+	resp, err := c.get(c.baseURL + "/api/v1/auth/me")
+	if err != nil {
+		return nil, fmt.Errorf("get request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var userInfo map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return userInfo, nil
 }

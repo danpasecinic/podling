@@ -17,7 +17,7 @@ import (
 
 func TestCreateService(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -188,7 +188,7 @@ func TestCreateService(t *testing.T) {
 
 func TestListServices(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -268,7 +268,7 @@ func TestListServices(t *testing.T) {
 
 func TestGetService(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -331,7 +331,7 @@ func TestGetService(t *testing.T) {
 
 func TestUpdateService(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -424,7 +424,7 @@ func TestUpdateService(t *testing.T) {
 
 func TestDeleteService(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -485,7 +485,7 @@ func TestDeleteService(t *testing.T) {
 
 func TestGetEndpoints(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)

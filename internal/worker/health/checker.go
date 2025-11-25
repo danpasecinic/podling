@@ -11,18 +11,15 @@ import (
 	"github.com/danpasecinic/podling/internal/worker/docker"
 )
 
-// DockerIPClient defines the interface for getting container IPs
 type DockerIPClient interface {
 	GetContainerIP(ctx context.Context, containerID string) (string, error)
 }
 
-// DockerHealthClient combines both exec and IP interfaces
 type DockerHealthClient interface {
 	DockerExecClient
 	DockerIPClient
 }
 
-// Checker manages health checks for a container
 type Checker struct {
 	taskID          string
 	containerID     string
@@ -42,7 +39,6 @@ type Checker struct {
 	onUnhealthy     func(taskID string)
 }
 
-// NewChecker creates a new health checker
 func NewChecker(
 	taskID string,
 	containerID string,
@@ -80,7 +76,6 @@ func newCheckerWithClient(
 	}
 }
 
-// Start begins health checking
 func (hc *Checker) Start(ctx context.Context) {
 	hc.mu.Lock()
 	if hc.stopped {
@@ -114,7 +109,6 @@ func (hc *Checker) Start(ctx context.Context) {
 	}
 }
 
-// Stop stops the health checker
 func (hc *Checker) Stop() {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
@@ -125,7 +119,6 @@ func (hc *Checker) Stop() {
 	}
 }
 
-// GetStatus returns the current health status
 func (hc *Checker) GetStatus() types.HealthStatus {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
@@ -212,7 +205,6 @@ func (hc *Checker) updateStatus(result types.ProbeResult) {
 	}
 }
 
-// ShouldRestart determines if a container should be restarted based on restart policy and exit code
 func ShouldRestart(policy types.RestartPolicy, exitCode int64) bool {
 	switch policy {
 	case types.RestartPolicyAlways:

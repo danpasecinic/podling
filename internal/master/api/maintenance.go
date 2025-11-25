@@ -8,8 +8,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Prune handles POST /api/v1/prune
-// Removes old/completed resources from the system
 func (s *Server) Prune(c echo.Context) error {
 	all := c.QueryParam("all") == "true"
 
@@ -29,7 +27,6 @@ func (s *Server) Prune(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-// pruneAll removes all resources from the system
 func (s *Server) pruneAll() *types.PruneResult {
 	result := &types.PruneResult{}
 

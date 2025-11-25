@@ -22,6 +22,7 @@ func main() {
 	hostname := flag.String("hostname", "localhost", "Worker hostname")
 	port := flag.Int("port", 8081, "Worker port")
 	masterURL := flag.String("master-url", "http://localhost:8070", "Master API URL")
+	apiKey := flag.String("api-key", "", "API key for authentication with master")
 	heartbeatInterval := flag.Duration("heartbeat-interval", 30*time.Second, "Heartbeat interval")
 	shutdownTimeout := flag.Duration("shutdown-timeout", 30*time.Second, "Graceful shutdown timeout")
 
@@ -30,11 +31,20 @@ func main() {
 		log.Fatal("node-id is required")
 	}
 
+	if *apiKey == "" {
+		*apiKey = os.Getenv("PODLING_API_KEY")
+	}
+
 	workerAgent, err := agent.NewAgent(*nodeID, *masterURL)
 	if err != nil {
 		log.Fatalf("failed to create agent: %v", err)
 	}
 	defer workerAgent.Stop()
+
+	if *apiKey != "" {
+		workerAgent.SetAPIKey(*apiKey)
+		log.Println("using API key for authentication")
+	}
 
 	log.Printf("registering worker with master at %s", *masterURL)
 	if err := workerAgent.Register(*hostname, *port); err != nil {

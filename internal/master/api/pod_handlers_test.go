@@ -18,7 +18,7 @@ import (
 
 func TestCreatePod(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -210,7 +210,7 @@ func TestCreatePod(t *testing.T) {
 
 func TestListPods(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -255,7 +255,7 @@ func TestListPods(t *testing.T) {
 
 func TestGetPod(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -321,7 +321,7 @@ func TestGetPod(t *testing.T) {
 
 func TestUpdatePodStatus(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)
@@ -407,7 +407,7 @@ func TestUpdatePodStatus(t *testing.T) {
 
 func TestDeletePod(t *testing.T) {
 	e := echo.New()
-	store := state.NewInMemoryStore()
+	store := state.NewMockStateStore()
 	sched := scheduler.NewRoundRobin()
 	endpointController := services.NewEndpointController(store)
 	server := NewServer(store, sched, endpointController)

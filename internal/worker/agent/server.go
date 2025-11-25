@@ -4,7 +4,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Server handles HTTP requests for the worker agent.
 type Server struct {
 	nodeID   string
 	hostname string
@@ -12,7 +11,6 @@ type Server struct {
 	agent    *Agent
 }
 
-// NewServer creates a new worker API server.
 func NewServer(nodeID, hostname string, port int, agent *Agent) *Server {
 	return &Server{
 		nodeID:   nodeID,
@@ -22,7 +20,6 @@ func NewServer(nodeID, hostname string, port int, agent *Agent) *Server {
 	}
 }
 
-// RegisterRoutes registers all worker API endpoints.
 func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1 := e.Group("/api/v1")
 

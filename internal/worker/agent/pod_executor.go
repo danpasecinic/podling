@@ -15,7 +15,6 @@ import (
 	"github.com/danpasecinic/podling/internal/worker/health"
 )
 
-// PodExecution tracks the state of a running pod
 type PodExecution struct {
 	pod            *types.Pod
 	networkID      string
@@ -25,7 +24,6 @@ type PodExecution struct {
 	cancelFunc     context.CancelFunc
 }
 
-// ExecutePod executes a pod by running all its containers with shared networking
 func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 	log.Printf("starting pod execution: %s (id: %s) with %d containers", pod.Name, pod.PodID, len(pod.Containers))
 
@@ -71,7 +69,6 @@ func (a *Agent) ExecutePod(ctx context.Context, pod *types.Pod) error {
 	return a.finalizePodStatus(pod, containerErrors)
 }
 
-// trackPodExecution registers a pod execution for tracking
 func (a *Agent) trackPodExecution(podID string, execution *PodExecution) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -82,14 +79,12 @@ func (a *Agent) trackPodExecution(podID string, execution *PodExecution) {
 	a.runningPods[podID] = execution
 }
 
-// untrackPodExecution removes a pod execution from tracking
 func (a *Agent) untrackPodExecution(podID string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	delete(a.runningPods, podID)
 }
 
-// setupPodNetwork creates a dedicated Docker network for the pod
 func (a *Agent) setupPodNetwork(ctx context.Context, pod *types.Pod, execution *PodExecution) error {
 	log.Printf("creating pod network for pod %s", pod.PodID)
 	networkID, err := a.dockerClient.CreatePodNetwork(ctx, pod.PodID)
@@ -111,7 +106,6 @@ func (a *Agent) setupPodNetwork(ctx context.Context, pod *types.Pod, execution *
 	return nil
 }
 
-// pullContainerImages pulls all container images for the pod
 func (a *Agent) pullContainerImages(ctx context.Context, pod *types.Pod, execution *PodExecution) error {
 	for i := range pod.Containers {
 		container := &pod.Containers[i]
@@ -131,7 +125,6 @@ func (a *Agent) pullContainerImages(ctx context.Context, pod *types.Pod, executi
 	return nil
 }
 
-// createPodContainers creates and starts all containers in the pod
 func (a *Agent) createPodContainers(ctx context.Context, pod *types.Pod, execution *PodExecution) error {
 	execution.mu.RLock()
 	networkID := execution.networkID
@@ -178,7 +171,6 @@ func (a *Agent) createPodContainers(ctx context.Context, pod *types.Pod, executi
 	return nil
 }
 
-// createContainer creates a single container with or without resource limits
 func (a *Agent) createContainer(
 	ctx context.Context, container *types.Container, env []string, networkID string,
 ) (string, error) {
@@ -212,7 +204,6 @@ func (a *Agent) createContainer(
 	return a.dockerClient.CreateContainerInNetwork(ctx, container.Image, env, networkID)
 }
 
-// startContainer starts a single container
 func (a *Agent) startContainer(
 	ctx context.Context, pod *types.Pod, container *types.Container, execution *PodExecution,
 ) error {
@@ -234,7 +225,6 @@ func (a *Agent) startContainer(
 	return nil
 }
 
-// startHealthChecks starts liveness probes for all containers that have them
 func (a *Agent) startHealthChecks(ctx context.Context, pod *types.Pod, execution *PodExecution) {
 	for i := range pod.Containers {
 		container := &pod.Containers[i]
@@ -283,7 +273,6 @@ func (a *Agent) startHealthChecks(ctx context.Context, pod *types.Pod, execution
 	}
 }
 
-// updatePodIP gets the pod IP and updates the master
 func (a *Agent) updatePodIP(ctx context.Context, pod *types.Pod, execution *PodExecution) error {
 	execution.mu.RLock()
 	networkID := execution.networkID
@@ -308,7 +297,6 @@ func (a *Agent) updatePodIP(ctx context.Context, pod *types.Pod, execution *PodE
 	return nil
 }
 
-// waitForContainers waits for all containers to complete and returns any errors
 func (a *Agent) waitForContainers(ctx context.Context, pod *types.Pod, execution *PodExecution) []error {
 	errChan := make(chan error, len(pod.Containers))
 	var wg sync.WaitGroup
@@ -358,7 +346,6 @@ func (a *Agent) waitForContainers(ctx context.Context, pod *types.Pod, execution
 	return containerErrors
 }
 
-// stopHealthCheckers stops all health checkers for the pod
 func (a *Agent) stopHealthCheckers(execution *PodExecution) {
 	execution.mu.Lock()
 	defer execution.mu.Unlock()
@@ -368,7 +355,6 @@ func (a *Agent) stopHealthCheckers(execution *PodExecution) {
 	}
 }
 
-// finalizePodStatus determines the final pod status and updates the master
 func (a *Agent) finalizePodStatus(pod *types.Pod, containerErrors []error) error {
 	finalStatus := types.PodSucceeded
 	message := "All containers completed successfully"
@@ -392,7 +378,6 @@ func (a *Agent) finalizePodStatus(pod *types.Pod, containerErrors []error) error
 	return nil
 }
 
-// cleanupPodResources stops and removes all containers in a pod, and removes the pod network
 func (a *Agent) cleanupPodResources(ctx context.Context, execution *PodExecution) {
 	execution.mu.RLock()
 	containerIDs := make(map[string]string)
@@ -422,7 +407,6 @@ func (a *Agent) cleanupPodResources(ctx context.Context, execution *PodExecution
 	}
 }
 
-// updatePodStatus sends a pod status update to the master
 func (a *Agent) updatePodStatus(
 	podID string, status types.PodStatus, containers []types.Container, message, reason string,
 ) error {
@@ -452,6 +436,7 @@ func (a *Agent) updatePodStatus(
 		return fmt.Errorf("failed to create pod status request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	a.addAuthHeader(req)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -467,7 +452,6 @@ func (a *Agent) updatePodStatus(
 	return nil
 }
 
-// updatePodStatusWithIP sends a pod status update to the master including pod IP
 func (a *Agent) updatePodStatusWithIP(
 	podID string, status types.PodStatus, containers []types.Container, podIP, message, reason string,
 ) error {
@@ -503,6 +487,7 @@ func (a *Agent) updatePodStatusWithIP(
 		return fmt.Errorf("failed to create pod status request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	a.addAuthHeader(req)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
