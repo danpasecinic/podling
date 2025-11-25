@@ -2,6 +2,7 @@ package auth
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -32,7 +33,7 @@ func (s *PostgresAuthStore) GetUser(userID string) (User, error) {
 	err := s.db.QueryRow(query, userID).Scan(
 		&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.CreatedAt, &lastLogin, &user.Disabled,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	if err != nil {
@@ -51,7 +52,7 @@ func (s *PostgresAuthStore) GetUserByUsername(username string) (User, error) {
 	err := s.db.QueryRow(query, username).Scan(
 		&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.CreatedAt, &lastLogin, &user.Disabled,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	if err != nil {
@@ -150,7 +151,7 @@ func (s *PostgresAuthStore) GetAPIKey(keyID string) (APIKey, error) {
 		&apiKey.ID, &apiKey.KeyHash, &apiKey.KeyPrefix, &apiKey.Name, &nodeID,
 		&apiKey.Role, &apiKey.CreatedAt, &expiresAt, &lastUsed, &apiKey.Revoked,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return APIKey{}, ErrAPIKeyNotFound
 	}
 	if err != nil {
