@@ -2,7 +2,6 @@ package types
 
 import "time"
 
-// TaskStatus represents the current state of a task
 type TaskStatus string
 
 const (
@@ -13,7 +12,6 @@ const (
 	TaskFailed    TaskStatus = "failed"
 )
 
-// Task represents a container execution task in the system
 type Task struct {
 	TaskID         string               `json:"taskId"`
 	Name           string               `json:"name"`
