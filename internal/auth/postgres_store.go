@@ -97,7 +97,7 @@ func (s *PostgresAuthStore) ListUsers() ([]User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var users []User
 	for rows.Next() {
@@ -218,7 +218,7 @@ func (s *PostgresAuthStore) ListAPIKeys() ([]APIKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var keys []APIKey
 	for rows.Next() {
@@ -251,7 +251,7 @@ func (s *PostgresAuthStore) ListAPIKeysByNodeID(nodeID string) ([]APIKey, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var keys []APIKey
 	for rows.Next() {

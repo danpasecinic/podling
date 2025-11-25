@@ -82,6 +82,6 @@ func (m *APIKeyManager) CreateAPIKey(name string, nodeID string, role Role) (*AP
 
 func randomString(n int) string {
 	bytes := make([]byte, n)
-	rand.Read(bytes)
+	_, _ = rand.Read(bytes)
 	return hex.EncodeToString(bytes)[:n]
 }

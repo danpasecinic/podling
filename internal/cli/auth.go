@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -27,7 +26,7 @@ var loginCmd = &cobra.Command{
 			username = args[0]
 		} else {
 			fmt.Print("Username: ")
-			fmt.Scanln(&username)
+			_, _ = fmt.Scanln(&username)
 		}
 
 		fmt.Print("Password: ")
@@ -78,14 +77,4 @@ var whoamiCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-func promptPassword(prompt string) (string, error) {
-	fmt.Fprint(os.Stderr, prompt)
-	passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return "", err
-	}
-	fmt.Fprintln(os.Stderr)
-	return string(passwordBytes), nil
 }
