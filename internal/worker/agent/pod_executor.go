@@ -452,6 +452,7 @@ func (a *Agent) updatePodStatus(
 		return fmt.Errorf("failed to create pod status request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	a.addAuthHeader(req)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -467,7 +468,6 @@ func (a *Agent) updatePodStatus(
 	return nil
 }
 
-// updatePodStatusWithIP sends a pod status update to the master including pod IP
 func (a *Agent) updatePodStatusWithIP(
 	podID string, status types.PodStatus, containers []types.Container, podIP, message, reason string,
 ) error {
@@ -503,6 +503,7 @@ func (a *Agent) updatePodStatusWithIP(
 		return fmt.Errorf("failed to create pod status request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	a.addAuthHeader(req)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)

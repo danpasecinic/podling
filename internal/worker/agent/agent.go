@@ -15,10 +15,10 @@ import (
 	"github.com/danpasecinic/podling/internal/worker/health"
 )
 
-// Agent manages task and pod execution and communication with the master.
 type Agent struct {
 	nodeID               string
 	masterURL            string
+	apiKey               string
 	dockerClient         *docker.Client
 	runningTasks         map[string]*types.Task
 	runningPods          map[string]*PodExecution
@@ -48,6 +48,16 @@ func NewAgent(nodeID, masterURL string) (*Agent, error) {
 		consecutiveFailures:  0,
 		maxConsecutiveErrors: 10,
 	}, nil
+}
+
+func (a *Agent) SetAPIKey(apiKey string) {
+	a.apiKey = apiKey
+}
+
+func (a *Agent) addAuthHeader(req *http.Request) {
+	if a.apiKey != "" {
+		req.Header.Set("X-API-Key", a.apiKey)
+	}
 }
 
 // Start begins the agent's background operations (heartbeat).
@@ -261,6 +271,7 @@ func (a *Agent) Register(hostname string, port int) error {
 		return fmt.Errorf("failed to create registration request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	a.addAuthHeader(req)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -286,13 +297,13 @@ func (a *Agent) Register(hostname string, port int) error {
 	return nil
 }
 
-// sendHeartbeat sends a heartbeat to the master node.
 func (a *Agent) sendHeartbeat() error {
 	url := fmt.Sprintf("%s/api/v1/nodes/%s/heartbeat", a.masterURL, a.nodeID)
 	req, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create heartbeat request: %w", err)
 	}
+	a.addAuthHeader(req)
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
@@ -308,7 +319,6 @@ func (a *Agent) sendHeartbeat() error {
 	return nil
 }
 
-// deregister removes the worker node from the master.
 func (a *Agent) deregister() error {
 	log.Printf("deregistering node %s from master", a.nodeID)
 	url := fmt.Sprintf("%s/api/v1/nodes/%s/deregister", a.masterURL, a.nodeID)
@@ -316,6 +326,7 @@ func (a *Agent) deregister() error {
 	if err != nil {
 		return fmt.Errorf("failed to create deregister request: %w", err)
 	}
+	a.addAuthHeader(req)
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
@@ -509,7 +520,6 @@ func (a *Agent) handleUnhealthyContainer(taskID string) {
 	}
 }
 
-// updateTaskStatus sends a status update to the master.
 func (a *Agent) updateTaskStatus(taskID string, status types.TaskStatus, containerID, errorMsg string) error {
 	url := fmt.Sprintf("%s/api/v1/tasks/%s/status", a.masterURL, taskID)
 
@@ -533,6 +543,7 @@ func (a *Agent) updateTaskStatus(taskID string, status types.TaskStatus, contain
 		return fmt.Errorf("failed to create status update request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	a.addAuthHeader(req)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -579,10 +590,16 @@ func (a *Agent) GetTaskLogs(ctx context.Context, taskID string, tail int) (strin
 	return a.dockerClient.GetContainerLogs(ctx, task.ContainerID, tail)
 }
 
-// getTaskFromMaster fetches task details from the master
 func (a *Agent) getTaskFromMaster(taskID string) (*types.Task, error) {
 	url := fmt.Sprintf("%s/api/v1/tasks/%s", a.masterURL, taskID)
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	a.addAuthHeader(req)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch task: %w", err)
 	}
