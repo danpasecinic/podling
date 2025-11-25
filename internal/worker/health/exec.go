@@ -8,17 +8,14 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
-// DockerExecClient defines the interface for executing commands in containers
 type DockerExecClient interface {
 	ExecInContainer(ctx context.Context, containerID string, cmd []string) (int, string, error)
 }
 
-// ExecProbe performs command execution health checks
 type ExecProbe struct {
 	dockerClient DockerExecClient
 }
 
-// Check executes a command inside the container
 func (p *ExecProbe) Check(ctx context.Context, check *types.HealthCheck, containerID string) types.ProbeResult {
 	result := types.ProbeResult{
 		Success:   false,

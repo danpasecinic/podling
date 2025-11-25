@@ -25,7 +25,6 @@ via Docker, and this CLI tool for interacting with the system.`,
 	Version: "0.1.0",
 }
 
-// Execute executes the root command.
 func Execute() error {
 	return rootCmd.Execute()
 }

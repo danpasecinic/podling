@@ -30,7 +30,6 @@ type Agent struct {
 	maxConsecutiveErrors int
 }
 
-// NewAgent creates a new worker agent.
 func NewAgent(nodeID, masterURL string) (*Agent, error) {
 	dockerClient, err := docker.NewClient()
 	if err != nil {
@@ -60,13 +59,11 @@ func (a *Agent) addAuthHeader(req *http.Request) {
 	}
 }
 
-// Start begins the agent's background operations (heartbeat).
 func (a *Agent) Start(heartbeatInterval time.Duration) {
 	a.heartbeatTicker = time.NewTicker(heartbeatInterval)
 	go a.heartbeatLoop()
 }
 
-// Stop gracefully stops the agent.
 func (a *Agent) Stop() {
 	if a.heartbeatTicker != nil {
 		a.heartbeatTicker.Stop()
@@ -77,7 +74,6 @@ func (a *Agent) Stop() {
 	}
 }
 
-// Shutdown performs a graceful shutdown waiting for running tasks to complete.
 func (a *Agent) Shutdown(ctx context.Context) error {
 	a.mu.RLock()
 	taskCount := len(a.runningTasks)
@@ -143,7 +139,6 @@ func (a *Agent) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// cleanupRunningTasks forcefully stops and removes running containers.
 func (a *Agent) cleanupRunningTasks(ctx context.Context) {
 	a.mu.Lock()
 	tasks := make([]*types.Task, 0, len(a.runningTasks))
@@ -165,7 +160,6 @@ func (a *Agent) cleanupRunningTasks(ctx context.Context) {
 	}
 }
 
-// cleanupRunningPods forcefully stops and removes all containers in running pods and their networks.
 func (a *Agent) cleanupRunningPods(ctx context.Context) {
 	a.mu.Lock()
 	pods := make([]*PodExecution, 0, len(a.runningPods))
@@ -198,7 +192,6 @@ func (a *Agent) cleanupRunningPods(ctx context.Context) {
 	}
 }
 
-// heartbeatLoop sends periodic heartbeats to the master with exponential backoff on failures.
 func (a *Agent) heartbeatLoop() {
 	for {
 		select {
@@ -212,7 +205,6 @@ func (a *Agent) heartbeatLoop() {
 	}
 }
 
-// sendHeartbeatWithRetry sends a heartbeat with exponential backoff on failures.
 func (a *Agent) sendHeartbeatWithRetry() error {
 	backoff := 1 * time.Second
 	maxBackoff := 30 * time.Second
@@ -250,7 +242,6 @@ func (a *Agent) sendHeartbeatWithRetry() error {
 	return fmt.Errorf("heartbeat failed after %d retries: %w", maxRetries, lastErr)
 }
 
-// Register registers the worker node with the master.
 func (a *Agent) Register(hostname string, port int) error {
 	url := fmt.Sprintf("%s/api/v1/nodes/register", a.masterURL)
 
@@ -343,7 +334,6 @@ func (a *Agent) deregister() error {
 	return nil
 }
 
-// ExecuteTask executes a task by running it in a Docker container.
 func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 	a.mu.Lock()
 	a.runningTasks[task.TaskID] = task
@@ -392,7 +382,9 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 			memoryLimit = task.Resources.Limits.GetMemoryLimitForDocker()
 		}
 
-		containerID, err = a.dockerClient.CreateContainerWithResourcesAndPorts(ctx, task.Image, env, cpuLimit, memoryLimit, ports)
+		containerID, err = a.dockerClient.CreateContainerWithResourcesAndPorts(
+			ctx, task.Image, env, cpuLimit, memoryLimit, ports,
+		)
 	} else if !task.Resources.Limits.IsZero() {
 		cpuLimit := task.Resources.Limits.GetCPULimitForDocker()
 		memoryLimit := task.Resources.Limits.GetMemoryLimitForDocker()
@@ -489,7 +481,6 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 	return nil
 }
 
-// handleUnhealthyContainer is called when a container becomes unhealthy
 func (a *Agent) handleUnhealthyContainer(taskID string) {
 	log.Printf("[health] container for task %s is unhealthy", taskID)
 
@@ -559,7 +550,6 @@ func (a *Agent) updateTaskStatus(taskID string, status types.TaskStatus, contain
 	return nil
 }
 
-// GetTask returns a running task by ID.
 func (a *Agent) GetTask(taskID string) (*types.Task, bool) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -567,7 +557,6 @@ func (a *Agent) GetTask(taskID string) (*types.Task, bool) {
 	return task, ok
 }
 
-// GetTaskLogs retrieves container logs for a task.
 func (a *Agent) GetTaskLogs(ctx context.Context, taskID string, tail int) (string, error) {
 	// First check if task is in runningTasks (for tasks currently executing)
 	a.mu.RLock()
@@ -622,7 +611,6 @@ func (a *Agent) getTaskFromMaster(taskID string) (*types.Task, error) {
 	return &task, nil
 }
 
-// GetPod retrieves a running pod by ID.
 func (a *Agent) GetPod(podID string) (*types.Pod, bool) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -633,7 +621,6 @@ func (a *Agent) GetPod(podID string) (*types.Pod, bool) {
 	return podExec.pod, true
 }
 
-// GetPodLogs retrieves logs from all containers in a pod.
 func (a *Agent) GetPodLogs(ctx context.Context, podID string, containerName string, tail int) (
 	map[string]string,
 	error,
@@ -679,7 +666,6 @@ func (a *Agent) GetPodLogs(ctx context.Context, podID string, containerName stri
 	return logs, nil
 }
 
-// CleanupPod stops all containers and removes the pod network for a given pod.
 func (a *Agent) CleanupPod(ctx context.Context, podID string) error {
 	a.mu.RLock()
 	podExec, ok := a.runningPods[podID]

@@ -60,30 +60,25 @@ type PodUpdate struct {
 	Annotations *map[string]string
 }
 
-// StateStore defines the interface for managing task and node state
 type StateStore interface {
-	// Task operations
 	AddTask(task types.Task) error
 	GetTask(taskID string) (types.Task, error)
 	UpdateTask(taskID string, updates TaskUpdate) error
 	ListTasks() ([]types.Task, error)
 	DeleteTask(taskID string) error
 
-	// Pod operations
 	AddPod(pod types.Pod) error
 	GetPod(podID string) (types.Pod, error)
 	UpdatePod(podID string, updates PodUpdate) error
 	ListPods() ([]types.Pod, error)
 	DeletePod(podID string) error
 
-	// Node operations
 	AddNode(node types.Node) error
 	GetNode(nodeID string) (types.Node, error)
 	UpdateNode(nodeID string, updates NodeUpdate) error
 	ListNodes() ([]types.Node, error)
 	DeleteNode(nodeID string) error
 
-	// Service operations
 	AddService(service types.Service) error
 	GetService(serviceID string) (types.Service, error)
 	GetServiceByName(namespace, name string) (types.Service, error)
@@ -91,18 +86,15 @@ type StateStore interface {
 	ListServices(namespace string) ([]types.Service, error)
 	DeleteService(serviceID string) error
 
-	// Endpoints operations
 	SetEndpoints(endpoints types.Endpoints) error
 	GetEndpoints(serviceID string) (types.Endpoints, error)
 	GetEndpointsByServiceName(namespace, serviceName string) (types.Endpoints, error)
 	DeleteEndpoints(serviceID string) error
 
-	// Utility
 	GetAvailableNodes() ([]types.Node, error)
 	ListPodsByLabels(namespace string, labels map[string]string) ([]types.Pod, error)
 }
 
-// InMemoryStore is a thread-safe in-memory implementation of StateStore
 type InMemoryStore struct {
 	mu        sync.RWMutex
 	tasks     map[string]types.Task
@@ -112,7 +104,6 @@ type InMemoryStore struct {
 	endpoints map[string]types.Endpoints // key is serviceID
 }
 
-// NewInMemoryStore creates a new in-memory state store
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
 		tasks:     make(map[string]types.Task),
@@ -123,7 +114,6 @@ func NewInMemoryStore() *InMemoryStore {
 	}
 }
 
-// AddTask adds a new task to the store
 func (s *InMemoryStore) AddTask(task types.Task) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -136,7 +126,6 @@ func (s *InMemoryStore) AddTask(task types.Task) error {
 	return nil
 }
 
-// GetTask retrieves a task by ID
 func (s *InMemoryStore) GetTask(taskID string) (types.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -149,7 +138,6 @@ func (s *InMemoryStore) GetTask(taskID string) (types.Task, error) {
 	return task, nil
 }
 
-// UpdateTask updates specific fields of a task
 func (s *InMemoryStore) UpdateTask(taskID string, updates TaskUpdate) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -186,7 +174,6 @@ func (s *InMemoryStore) UpdateTask(taskID string, updates TaskUpdate) error {
 	return nil
 }
 
-// ListTasks returns all tasks in the store
 func (s *InMemoryStore) ListTasks() ([]types.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -199,7 +186,6 @@ func (s *InMemoryStore) ListTasks() ([]types.Task, error) {
 	return tasks, nil
 }
 
-// DeleteTask removes a task from the store
 func (s *InMemoryStore) DeleteTask(taskID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -212,7 +198,6 @@ func (s *InMemoryStore) DeleteTask(taskID string) error {
 	return nil
 }
 
-// AddPod adds a new pod to the store
 func (s *InMemoryStore) AddPod(pod types.Pod) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -225,7 +210,6 @@ func (s *InMemoryStore) AddPod(pod types.Pod) error {
 	return nil
 }
 
-// GetPod retrieves a pod by ID
 func (s *InMemoryStore) GetPod(podID string) (types.Pod, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -238,7 +222,6 @@ func (s *InMemoryStore) GetPod(podID string) (types.Pod, error) {
 	return pod, nil
 }
 
-// UpdatePod updates specific fields of a pod
 func (s *InMemoryStore) UpdatePod(podID string, updates PodUpdate) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -287,7 +270,6 @@ func (s *InMemoryStore) UpdatePod(podID string, updates PodUpdate) error {
 	return nil
 }
 
-// ListPods returns all pods in the store
 func (s *InMemoryStore) ListPods() ([]types.Pod, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -300,7 +282,6 @@ func (s *InMemoryStore) ListPods() ([]types.Pod, error) {
 	return pods, nil
 }
 
-// DeletePod removes a pod from the store
 func (s *InMemoryStore) DeletePod(podID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -313,7 +294,6 @@ func (s *InMemoryStore) DeletePod(podID string) error {
 	return nil
 }
 
-// AddNode adds a new node to the store
 func (s *InMemoryStore) AddNode(node types.Node) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -326,7 +306,6 @@ func (s *InMemoryStore) AddNode(node types.Node) error {
 	return nil
 }
 
-// GetNode retrieves a node by ID
 func (s *InMemoryStore) GetNode(nodeID string) (types.Node, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -339,7 +318,6 @@ func (s *InMemoryStore) GetNode(nodeID string) (types.Node, error) {
 	return node, nil
 }
 
-// UpdateNode updates specific fields of a node
 func (s *InMemoryStore) UpdateNode(nodeID string, updates NodeUpdate) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -364,7 +342,6 @@ func (s *InMemoryStore) UpdateNode(nodeID string, updates NodeUpdate) error {
 	return nil
 }
 
-// ListNodes returns all nodes in the store
 func (s *InMemoryStore) ListNodes() ([]types.Node, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -377,7 +354,6 @@ func (s *InMemoryStore) ListNodes() ([]types.Node, error) {
 	return nodes, nil
 }
 
-// DeleteNode removes a node from the store
 func (s *InMemoryStore) DeleteNode(nodeID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -390,7 +366,6 @@ func (s *InMemoryStore) DeleteNode(nodeID string) error {
 	return nil
 }
 
-// GetAvailableNodes returns all online nodes
 func (s *InMemoryStore) GetAvailableNodes() ([]types.Node, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -405,7 +380,6 @@ func (s *InMemoryStore) GetAvailableNodes() ([]types.Node, error) {
 	return nodes, nil
 }
 
-// AddService adds a new service to the store
 func (s *InMemoryStore) AddService(service types.Service) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -418,7 +392,6 @@ func (s *InMemoryStore) AddService(service types.Service) error {
 	return nil
 }
 
-// GetService retrieves a service by ID
 func (s *InMemoryStore) GetService(serviceID string) (types.Service, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -431,7 +404,6 @@ func (s *InMemoryStore) GetService(serviceID string) (types.Service, error) {
 	return service, nil
 }
 
-// GetServiceByName retrieves a service by namespace and name
 func (s *InMemoryStore) GetServiceByName(namespace, name string) (types.Service, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -453,7 +425,6 @@ func (s *InMemoryStore) GetServiceByName(namespace, name string) (types.Service,
 	return types.Service{}, ErrServiceNotFound
 }
 
-// UpdateService updates specific fields of a service
 func (s *InMemoryStore) UpdateService(serviceID string, updates types.ServiceUpdate) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -484,8 +455,6 @@ func (s *InMemoryStore) UpdateService(serviceID string, updates types.ServiceUpd
 	return nil
 }
 
-// ListServices returns all services in the specified namespace
-// If namespace is empty, returns services from all namespaces
 func (s *InMemoryStore) ListServices(namespace string) ([]types.Service, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -511,7 +480,6 @@ func (s *InMemoryStore) ListServices(namespace string) ([]types.Service, error) 
 	return services, nil
 }
 
-// DeleteService removes a service from the store
 func (s *InMemoryStore) DeleteService(serviceID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -524,7 +492,6 @@ func (s *InMemoryStore) DeleteService(serviceID string) error {
 	return nil
 }
 
-// SetEndpoints sets or updates endpoints for a service
 func (s *InMemoryStore) SetEndpoints(endpoints types.Endpoints) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -534,7 +501,6 @@ func (s *InMemoryStore) SetEndpoints(endpoints types.Endpoints) error {
 	return nil
 }
 
-// GetEndpoints retrieves endpoints by service ID
 func (s *InMemoryStore) GetEndpoints(serviceID string) (types.Endpoints, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -547,7 +513,6 @@ func (s *InMemoryStore) GetEndpoints(serviceID string) (types.Endpoints, error) 
 	return endpoints, nil
 }
 
-// GetEndpointsByServiceName retrieves endpoints by namespace and service name
 func (s *InMemoryStore) GetEndpointsByServiceName(namespace, serviceName string) (types.Endpoints, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -570,7 +535,6 @@ func (s *InMemoryStore) GetEndpointsByServiceName(namespace, serviceName string)
 	return types.Endpoints{}, ErrEndpointsNotFound
 }
 
-// DeleteEndpoints removes endpoints from the store
 func (s *InMemoryStore) DeleteEndpoints(serviceID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -583,7 +547,6 @@ func (s *InMemoryStore) DeleteEndpoints(serviceID string) error {
 	return nil
 }
 
-// ListPodsByLabels returns pods matching the label selector in a namespace
 func (s *InMemoryStore) ListPodsByLabels(namespace string, labels map[string]string) ([]types.Pod, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

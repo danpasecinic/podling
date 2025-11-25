@@ -14,7 +14,6 @@ var podCmd = &cobra.Command{
 	Long:  `Create, list, inspect, and delete pods (groups of containers).`,
 }
 
-// Pod create command
 var (
 	podCreateNamespace  string
 	podCreateLabels     []string
@@ -116,7 +115,6 @@ Port format: [containerName:]hostPort:containerPort
 	},
 }
 
-// Pod list command
 var podListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all pods",
@@ -163,7 +161,6 @@ var podListCmd = &cobra.Command{
 	},
 }
 
-// Pod get command
 var podGetCmd = &cobra.Command{
 	Use:   "get [pod-id]",
 	Short: "Get detailed information about a pod",
@@ -238,7 +235,6 @@ var podGetCmd = &cobra.Command{
 	},
 }
 
-// Pod delete command
 var podDeleteCmd = &cobra.Command{
 	Use:   "delete [pod-id]",
 	Short: "Delete a pod",
@@ -276,8 +272,6 @@ func init() {
 	)
 }
 
-// parseContainerSpec parses a container specification string
-// Format: name:image[:tag][:env1=val1,env2=val2]
 func parseContainerSpec(spec string) (types.Container, error) {
 	firstColon := strings.Index(spec, ":")
 	if firstColon == -1 {
@@ -329,7 +323,6 @@ func parseContainerSpec(spec string) (types.Container, error) {
 	return container, nil
 }
 
-// Pod logs command
 var (
 	podLogsContainer string
 	podLogsTail      int
@@ -376,13 +369,11 @@ Examples:
 	},
 }
 
-// Initialize pod logs command flags
 func init() {
 	podLogsCmd.Flags().StringVarP(&podLogsContainer, "container", "c", "", "specific container name")
 	podLogsCmd.Flags().IntVarP(&podLogsTail, "tail", "t", 100, "number of lines to show from the end of logs")
 }
 
-// truncate truncates a string to the specified length
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
@@ -393,7 +384,6 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-// applyPortMappings applies port mappings to the specified containers
 func applyPortMappings(containers []types.Container, portSpecs []string) error {
 	for _, portSpec := range portSpecs {
 		parts := strings.Split(portSpec, ":")

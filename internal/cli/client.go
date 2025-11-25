@@ -106,7 +106,6 @@ func (c *Client) CreateTask(name, image string, env map[string]string) (*types.T
 	return &task, nil
 }
 
-// CreateTaskWithPorts creates a new task with specified port mappings
 func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, portSpecs []string) (
 	*types.Task,
 	error,
@@ -228,7 +227,6 @@ func (c *Client) ListNodes() ([]types.Node, error) {
 	return nodes, nil
 }
 
-// GetNode retrieves a specific node by ID
 func (c *Client) GetNode(nodeID string) (*types.Node, error) {
 	nodes, err := c.ListNodes()
 	if err != nil {
@@ -289,7 +287,6 @@ func (c *Client) GetTaskLogs(task *types.Task, tail int) (string, error) {
 	return logs, nil
 }
 
-// CreatePod creates a new pod with the given containers
 func (c *Client) CreatePod(name, namespace string, labels map[string]string, containers []types.Container) (
 	*types.Pod,
 	error,
@@ -371,7 +368,6 @@ func (c *Client) GetPod(podID string) (*types.Pod, error) {
 	return &pod, nil
 }
 
-// GetPodLogs retrieves logs from a pod's containers
 func (c *Client) GetPodLogs(podID string, containerName string, tail int) (map[string]string, error) {
 	pod, err := c.GetPod(podID)
 	if err != nil {
@@ -428,7 +424,6 @@ func (c *Client) DeletePod(podID string) error {
 	return nil
 }
 
-// CreateService creates a new service
 func (c *Client) CreateService(
 	name, namespace string, selector map[string]string, ports []types.ServicePort, labels map[string]string,
 	serviceType, sessionAffinity string,

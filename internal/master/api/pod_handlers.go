@@ -13,7 +13,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// CreatePodRequest represents a request to create a new pod
 type CreatePodRequest struct {
 	Name          string              `json:"name" validate:"required"`
 	Namespace     string              `json:"namespace,omitempty"`
@@ -23,7 +22,6 @@ type CreatePodRequest struct {
 	RestartPolicy types.RestartPolicy `json:"restartPolicy,omitempty"`
 }
 
-// UpdatePodStatusRequest represents a request to update a pod's status
 type UpdatePodStatusRequest struct {
 	Status      types.PodStatus   `json:"status" validate:"required"`
 	Containers  []types.Container `json:"containers,omitempty"`
@@ -32,7 +30,6 @@ type UpdatePodStatusRequest struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// CreatePod handles POST /api/v1/pods
 func (s *Server) CreatePod(c echo.Context) error {
 	var req CreatePodRequest
 	if err := c.Bind(&req); err != nil {
@@ -111,8 +108,6 @@ func (s *Server) CreatePod(c echo.Context) error {
 	return c.JSON(http.StatusCreated, updatedPod)
 }
 
-// ListPods handles GET /api/v1/pods
-// Returns all pods in the system
 func (s *Server) ListPods(c echo.Context) error {
 	pods, err := s.store.ListPods()
 	if err != nil {
@@ -122,7 +117,6 @@ func (s *Server) ListPods(c echo.Context) error {
 	return c.JSON(http.StatusOK, pods)
 }
 
-// GetPod handles GET /api/v1/pods/:id
 func (s *Server) GetPod(c echo.Context) error {
 	podID := c.Param("id")
 
@@ -134,7 +128,6 @@ func (s *Server) GetPod(c echo.Context) error {
 	return c.JSON(http.StatusOK, pod)
 }
 
-// UpdatePodStatus handles PUT /api/v1/pods/:id/status
 func (s *Server) UpdatePodStatus(c echo.Context) error {
 	podID := c.Param("id")
 
@@ -177,7 +170,6 @@ func (s *Server) UpdatePodStatus(c echo.Context) error {
 	return c.JSON(http.StatusOK, pod)
 }
 
-// DeletePod handles DELETE /api/v1/pods/:id
 func (s *Server) DeletePod(c echo.Context) error {
 	podID := c.Param("id")
 
@@ -205,7 +197,6 @@ func (s *Server) DeletePod(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "pod deleted successfully"})
 }
 
-// notifyWorkerToCleanupPod sends a request to the worker node to clean up the pod resources
 func (s *Server) notifyWorkerToCleanupPod(pod *types.Pod) error {
 	node, err := s.store.GetNode(pod.NodeID)
 	if err != nil {
@@ -233,7 +224,6 @@ func (s *Server) notifyWorkerToCleanupPod(pod *types.Pod) error {
 	return nil
 }
 
-// schedulePod schedules a pod to an available node
 func (s *Server) schedulePod(podID string) error {
 	pod, err := s.store.GetPod(podID)
 	if err != nil {

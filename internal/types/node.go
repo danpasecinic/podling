@@ -2,7 +2,6 @@ package types
 
 import "time"
 
-// NodeStatus represents the current state of a worker node
 type NodeStatus string
 
 const (
@@ -10,7 +9,6 @@ const (
 	NodeOffline NodeStatus = "offline"
 )
 
-// Node represents a worker node in the system
 type Node struct {
 	NodeID        string         `json:"nodeId"`
 	Hostname      string         `json:"hostname"`
@@ -21,8 +19,6 @@ type Node struct {
 	Resources     *NodeResources `json:"resources"`
 }
 
-// GetMaxTaskSlots returns the maximum number of tasks that can run on the node
-// This is calculated based on resource capacity using a simple heuristic
 func (n *Node) GetMaxTaskSlots() int {
 	if n.Resources == nil {
 		return 10

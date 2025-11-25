@@ -10,13 +10,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// ExecuteTaskRequest represents a task execution request.
 type ExecuteTaskRequest struct {
 	Task types.Task `json:"task"`
 }
 
-// ExecuteTask handles POST /api/v1/tasks/:id/execute
-// Executes a task in a Docker container.
 func (s *Server) ExecuteTask(c echo.Context) error {
 	taskID := c.Param("id")
 
@@ -67,8 +64,6 @@ func (s *Server) ExecuteTask(c echo.Context) error {
 	)
 }
 
-// GetTaskStatus handles GET /api/v1/tasks/:id/status
-// Returns the current status of a running task.
 func (s *Server) GetTaskStatus(c echo.Context) error {
 	taskID := c.Param("id")
 
@@ -80,8 +75,6 @@ func (s *Server) GetTaskStatus(c echo.Context) error {
 	return c.JSON(http.StatusOK, task)
 }
 
-// GetTaskLogs handles GET /api/v1/tasks/:id/logs
-// Returns container logs for a task.
 func (s *Server) GetTaskLogs(c echo.Context) error {
 	taskID := c.Param("id")
 	tail := 100
@@ -105,7 +98,6 @@ func (s *Server) GetTaskLogs(c echo.Context) error {
 	)
 }
 
-// validateHealthCheck validates health check configuration to prevent injection attacks
 func validateHealthCheck(check *types.HealthCheck) error {
 	if check == nil {
 		return nil
@@ -182,13 +174,10 @@ func validateHealthCheck(check *types.HealthCheck) error {
 	return nil
 }
 
-// ExecutePodRequest represents a pod execution request.
 type ExecutePodRequest struct {
 	Pod types.Pod `json:"pod"`
 }
 
-// ExecutePod handles POST /api/v1/pods/:id/execute
-// Executes a pod (all its containers) on this worker.
 func (s *Server) ExecutePod(c echo.Context) error {
 	podID := c.Param("id")
 
@@ -218,8 +207,6 @@ func (s *Server) ExecutePod(c echo.Context) error {
 	)
 }
 
-// GetPodStatus handles GET /api/v1/pods/:id/status
-// Returns the current status of a running pod.
 func (s *Server) GetPodStatus(c echo.Context) error {
 	podID := c.Param("id")
 
@@ -231,8 +218,6 @@ func (s *Server) GetPodStatus(c echo.Context) error {
 	return c.JSON(http.StatusOK, pod)
 }
 
-// GetPodLogs handles GET /api/v1/pods/:id/logs
-// Returns logs from containers in a pod.
 func (s *Server) GetPodLogs(c echo.Context) error {
 	podID := c.Param("id")
 	containerName := c.QueryParam("container")
@@ -261,8 +246,6 @@ func (s *Server) GetPodLogs(c echo.Context) error {
 	)
 }
 
-// DeletePod handles DELETE /api/v1/pods/:id
-// Stops all containers and cleans up pod resources on this worker.
 func (s *Server) DeletePod(c echo.Context) error {
 	podID := c.Param("id")
 

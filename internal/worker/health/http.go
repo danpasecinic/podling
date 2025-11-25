@@ -12,12 +12,10 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
-// HTTPProbe performs HTTP health checks
 type HTTPProbe struct {
 	client *http.Client
 }
 
-// NewHTTPProbe creates a new HTTP probe
 func NewHTTPProbe() *HTTPProbe {
 	return &HTTPProbe{
 		client: &http.Client{
@@ -27,8 +25,6 @@ func NewHTTPProbe() *HTTPProbe {
 	}
 }
 
-// Check performs an HTTP GET request to check container health
-// containerIP is the IP address of the container
 func (p *HTTPProbe) Check(ctx context.Context, check *types.HealthCheck, containerIP string) types.ProbeResult {
 	result := types.ProbeResult{
 		Success:   false,
@@ -96,8 +92,6 @@ func (p *HTTPProbe) Check(ctx context.Context, check *types.HealthCheck, contain
 	return result
 }
 
-// validateContainerIP validates that the IP address is a valid private IP
-// This prevents SSRF attacks by ensuring we only probe container IPs
 func validateContainerIP(ipStr string) error {
 	if ipStr == "" {
 		return fmt.Errorf("IP address is empty")

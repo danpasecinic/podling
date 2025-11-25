@@ -12,7 +12,6 @@ import (
 	"github.com/danpasecinic/podling/internal/types"
 )
 
-// EndpointController watches for pod changes and updates service endpoints
 type EndpointController struct {
 	store        state.StateStore
 	mu           sync.RWMutex
@@ -21,7 +20,6 @@ type EndpointController struct {
 	ipAllocator  *ClusterIPAllocator
 }
 
-// NewEndpointController creates a new endpoint controller
 func NewEndpointController(store state.StateStore) *EndpointController {
 	return &EndpointController{
 		store:        store,
@@ -31,7 +29,6 @@ func NewEndpointController(store state.StateStore) *EndpointController {
 	}
 }
 
-// Start begins the endpoint controller's reconciliation loop
 func (ec *EndpointController) Start(ctx context.Context) error {
 	log.Println("Starting endpoint controller...")
 
@@ -58,12 +55,10 @@ func (ec *EndpointController) Start(ctx context.Context) error {
 	}
 }
 
-// Stop halts the endpoint controller
 func (ec *EndpointController) Stop() {
 	close(ec.stopChan)
 }
 
-// syncAllEndpoints reconciles all services with their matching pods
 func (ec *EndpointController) syncAllEndpoints(ctx context.Context) error {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
@@ -82,7 +77,6 @@ func (ec *EndpointController) syncAllEndpoints(ctx context.Context) error {
 	return nil
 }
 
-// syncServiceEndpoints updates endpoints for a single service
 func (ec *EndpointController) syncServiceEndpoints(service types.Service) error {
 	if len(service.Selector) == 0 {
 		return nil
@@ -107,7 +101,6 @@ func (ec *EndpointController) syncServiceEndpoints(service types.Service) error 
 	return nil
 }
 
-// buildEndpoints creates an Endpoints object from a service and its matching pods
 func (ec *EndpointController) buildEndpoints(service types.Service, pods []types.Pod) types.Endpoints {
 	namespace := service.Namespace
 	if namespace == "" {
@@ -171,8 +164,6 @@ func (ec *EndpointController) buildEndpoints(service types.Service, pods []types
 	return endpoints
 }
 
-// getPodIP extracts the IP address from a pod's annotations
-// The worker sets the "podling.io/pod-ip" annotation when the pod starts
 func (ec *EndpointController) getPodIP(pod types.Pod) string {
 	if pod.Annotations != nil {
 		if ip, ok := pod.Annotations["podling.io/pod-ip"]; ok && ip != "" {
@@ -183,7 +174,6 @@ func (ec *EndpointController) getPodIP(pod types.Pod) string {
 	return ""
 }
 
-// isPodReady checks if all containers in a pod are ready
 func (ec *EndpointController) isPodReady(pod types.Pod) bool {
 	if pod.Status != types.PodRunning {
 		return false
@@ -203,7 +193,6 @@ func (ec *EndpointController) isPodReady(pod types.Pod) bool {
 	return true
 }
 
-// AllocateClusterIP allocates a cluster IP for a new service
 func (ec *EndpointController) AllocateClusterIP() (string, error) {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
@@ -211,7 +200,6 @@ func (ec *EndpointController) AllocateClusterIP() (string, error) {
 	return ec.ipAllocator.Allocate()
 }
 
-// ReleaseClusterIP releases a cluster IP back to the pool
 func (ec *EndpointController) ReleaseClusterIP(ip string) error {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
@@ -219,7 +207,6 @@ func (ec *EndpointController) ReleaseClusterIP(ip string) error {
 	return ec.ipAllocator.Release(ip)
 }
 
-// ClusterIPAllocator manages allocation of cluster IPs for services
 type ClusterIPAllocator struct {
 	mu        sync.RWMutex
 	cidr      *net.IPNet
@@ -227,7 +214,6 @@ type ClusterIPAllocator struct {
 	lastIP    net.IP
 }
 
-// NewClusterIPAllocator creates a new IP allocator for the given CIDR
 func NewClusterIPAllocator(cidr string) *ClusterIPAllocator {
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
@@ -243,7 +229,6 @@ func NewClusterIPAllocator(cidr string) *ClusterIPAllocator {
 	return allocator
 }
 
-// Allocate returns a new available IP from the pool
 func (a *ClusterIPAllocator) Allocate() (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -270,7 +255,6 @@ func (a *ClusterIPAllocator) Allocate() (string, error) {
 	return "", fmt.Errorf("no available IPs in range %s", a.cidr.String())
 }
 
-// Release marks an IP as available
 func (a *ClusterIPAllocator) Release(ip string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -283,7 +267,6 @@ func (a *ClusterIPAllocator) Release(ip string) error {
 	return nil
 }
 
-// nextIP increments an IP address
 func nextIP(ip net.IP) net.IP {
 	next := make(net.IP, len(ip))
 	copy(next, ip)

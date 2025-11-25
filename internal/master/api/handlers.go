@@ -14,7 +14,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// CreateTaskRequest represents a request to create a new task.
 type CreateTaskRequest struct {
 	Name           string                `json:"name" validate:"required"`
 	Image          string                `json:"image" validate:"required"`
@@ -25,7 +24,6 @@ type CreateTaskRequest struct {
 	Ports          []types.ContainerPort `json:"ports,omitempty"`
 }
 
-// UpdateTaskStatusRequest represents a request to update a task's status.
 type UpdateTaskStatusRequest struct {
 	Status       types.TaskStatus   `json:"status" validate:"required"`
 	ContainerID  string             `json:"containerId"`
@@ -33,7 +31,6 @@ type UpdateTaskStatusRequest struct {
 	HealthStatus types.HealthStatus `json:"healthStatus,omitempty"`
 }
 
-// RegisterNodeRequest represents a request to register a new worker node.
 type RegisterNodeRequest struct {
 	Hostname string `json:"hostname" validate:"required"`
 	Port     int    `json:"port" validate:"required"`
@@ -41,8 +38,6 @@ type RegisterNodeRequest struct {
 	Memory   string `json:"memory" validate:"required"` // e.g., "1Gi", "512Mi", "1073741824"
 }
 
-// CreateTask handles POST /api/v1/tasks.
-// Creates a new task and automatically schedules it to an available node.
 func (s *Server) CreateTask(c echo.Context) error {
 	var req CreateTaskRequest
 	if err := c.Bind(&req); err != nil {
@@ -89,8 +84,6 @@ func (s *Server) CreateTask(c echo.Context) error {
 	return c.JSON(http.StatusCreated, updatedTask)
 }
 
-// ListTasks handles GET /api/v1/tasks.
-// Returns all tasks in the system.
 func (s *Server) ListTasks(c echo.Context) error {
 	tasks, err := s.store.ListTasks()
 	if err != nil {
@@ -100,8 +93,6 @@ func (s *Server) ListTasks(c echo.Context) error {
 	return c.JSON(http.StatusOK, tasks)
 }
 
-// GetTask handles GET /api/v1/tasks/:id.
-// Returns details for a specific task.
 func (s *Server) GetTask(c echo.Context) error {
 	taskID := c.Param("id")
 
@@ -113,8 +104,6 @@ func (s *Server) GetTask(c echo.Context) error {
 	return c.JSON(http.StatusOK, task)
 }
 
-// UpdateTaskStatus handles PUT /api/v1/tasks/:id/status.
-// Updates the status of a task, typically called by worker nodes.
 func (s *Server) UpdateTaskStatus(c echo.Context) error {
 	taskID := c.Param("id")
 
@@ -151,8 +140,6 @@ func (s *Server) UpdateTaskStatus(c echo.Context) error {
 	return c.JSON(http.StatusOK, task)
 }
 
-// RegisterNode handles POST /api/v1/nodes/register.
-// Registers a new worker node with the master.
 func (s *Server) RegisterNode(c echo.Context) error {
 	var req RegisterNodeRequest
 	if err := c.Bind(&req); err != nil {
@@ -203,8 +190,6 @@ func (s *Server) RegisterNode(c echo.Context) error {
 	return c.JSON(http.StatusCreated, node)
 }
 
-// NodeHeartbeat handles POST /api/v1/nodes/:id/heartbeat.
-// Updates the last heartbeat time for a worker node.
 func (s *Server) NodeHeartbeat(c echo.Context) error {
 	nodeID := c.Param("id")
 
@@ -222,8 +207,6 @@ func (s *Server) NodeHeartbeat(c echo.Context) error {
 	return c.JSON(http.StatusOK, node)
 }
 
-// NodeDeregister handles POST /api/v1/nodes/:id/deregister.
-// Marks a worker node as offline during graceful shutdown.
 func (s *Server) NodeDeregister(c echo.Context) error {
 	nodeID := c.Param("id")
 
@@ -238,8 +221,6 @@ func (s *Server) NodeDeregister(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "node deregistered successfully"})
 }
 
-// ListNodes handles GET /api/v1/nodes.
-// Returns all registered worker nodes with updated status based on heartbeat.
 func (s *Server) ListNodes(c echo.Context) error {
 	nodes, err := s.store.ListNodes()
 	if err != nil {
@@ -309,7 +290,6 @@ func (s *Server) scheduleTask(taskID string) error {
 	return nil
 }
 
-// triggerTaskExecution sends a request to the selected node to execute the task.
 func (s *Server) triggerTaskExecution(taskID string, node types.Node) {
 	task, err := s.store.GetTask(taskID)
 	if err != nil {
