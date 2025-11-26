@@ -21,6 +21,7 @@ type Middleware struct {
 	authStore    AuthStore
 	skipPaths    map[string]bool
 	skipPrefixes []string
+	skipSuffixes []string
 }
 
 func NewMiddleware(config Config, authStore AuthStore) *Middleware {
@@ -50,6 +51,10 @@ func (m *Middleware) SetSkipPrefixes(prefixes ...string) {
 	m.skipPrefixes = append(m.skipPrefixes, prefixes...)
 }
 
+func (m *Middleware) SetSkipSuffixes(suffixes ...string) {
+	m.skipSuffixes = append(m.skipSuffixes, suffixes...)
+}
+
 func (m *Middleware) JWTManager() *JWTManager {
 	return m.jwtManager
 }
@@ -77,6 +82,11 @@ func (m *Middleware) Authenticate() echo.MiddlewareFunc {
 			}
 			for _, prefix := range m.skipPrefixes {
 				if strings.HasPrefix(path, prefix) {
+					return next(c)
+				}
+			}
+			for _, suffix := range m.skipSuffixes {
+				if strings.HasSuffix(path, suffix) {
 					return next(c)
 				}
 			}

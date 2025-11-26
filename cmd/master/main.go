@@ -58,6 +58,7 @@ func main() {
 		"/api/v1/auth/signup",
 	)
 	authMiddleware.SetSkipPrefixes("/api/v1/nodes/")
+	authMiddleware.SetSkipSuffixes("/status")
 
 	e := echo.New()
 	e.Use(middleware.Logger())
