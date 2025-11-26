@@ -6,6 +6,8 @@
 A lightweight, educational container orchestrator built from scratch in Go. Inspired by Kubernetes, it features a master
 controller with REST API, worker agents that manage containers via Docker, and a CLI tool.
 
+![Uploading F2n4Ae31.png…]()
+
 ## Features
 
 - **Master-Worker Architecture**: Distributed container management
