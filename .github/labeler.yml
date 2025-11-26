@@ -1,109 +1,32 @@
-'component: master':
+backend:
   - changed-files:
       - any-glob-to-any-file:
-          - 'cmd/master/**'
-          - 'internal/master/**'
+          - '**/*.go'
+          - 'go.mod'
+          - 'go.sum'
 
-'component: worker':
+frontend:
   - changed-files:
       - any-glob-to-any-file:
-          - 'cmd/worker/**'
-          - 'internal/worker/**'
+          - 'web/**'
+          - '!web/**/*.md'
 
-'component: cli':
+devops:
   - changed-files:
       - any-glob-to-any-file:
-          - 'cmd/podling/**'
-          - 'internal/cli/**'
-
-'area: api':
-  - changed-files:
-      - any-glob-to-any-file:
-          - '**/api/**'
-          - '**/*handler*.go'
-
-'area: storage':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'internal/master/state/**'
-          - '**/migrations/**'
-
-'area: scheduler':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'internal/master/scheduler/**'
-
-'area: docker':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'internal/worker/docker/**'
-          - 'deployments/docker/**'
+          - '.github/**'
           - 'Dockerfile*'
           - 'docker-compose*.yml'
+          - 'Makefile'
+          - '.air.toml'
 
-'area: health':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'internal/worker/health/**'
-          - '**/*health*.go'
-
-'area: pods':
-  - changed-files:
-      - any-glob-to-any-file:
-          - '**/*pod*.go'
-          - '**/pod_*.go'
-
-'area: services':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'internal/master/services/**'
-          - '**/*service*.go'
-
-'type: tests':
-  - changed-files:
-      - any-glob-to-any-file:
-          - '**/*_test.go'
-          - '**/test/**'
-          - '**/testdata/**'
-
-'type: documentation':
+documentation:
   - changed-files:
       - any-glob-to-any-file:
           - '**/*.md'
           - 'docs/**'
-          - 'CLAUDE.md'
-          - 'README.md'
 
-'type: dependencies':
+database:
   - changed-files:
       - any-glob-to-any-file:
-          - 'go.mod'
-          - 'go.sum'
-
-'type: ci/cd':
-  - changed-files:
-      - any-glob-to-any-file:
-          - '.github/**'
-          - '.gitignore'
-          - 'Makefile'
-          - '.air.toml'
-
-'type: database':
-  - changed-files:
-      - any-glob-to-any-file:
-          - '**/migrations/**'
-          - '**/*postgres*.go'
-          - 'docker-compose.yml'
-
-'breaking change':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'internal/types/**'
-          - '**/api/v*/**'
-
-'needs review':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'internal/master/state/**'
-          - 'internal/worker/agent/**'
           - '**/migrations/**'

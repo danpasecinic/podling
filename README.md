@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/danpasecinic/podling/actions/workflows/ci.yml/badge.svg)](https://github.com/danpasecinic/podling/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/danpasecinic/podling)](https://goreportcard.com/report/github.com/danpasecinic/podling)
-[![codecov](https://codecov.io/gh/danpasecinic/podling/branch/main/graph/badge.svg)](https://codecov.io/gh/danpasecinic/podling)
 
 A lightweight, educational container orchestrator built from scratch in Go. Inspired by Kubernetes, it features a master
 controller with REST API, worker agents that manage containers via Docker, and a CLI tool.
@@ -12,6 +11,7 @@ controller with REST API, worker agents that manage containers via Docker, and a
 - **Master-Worker Architecture**: Distributed container management
 - **Multi-Container Pods**: Kubernetes-style pods with shared lifecycle
 - **REST API**: Echo-based HTTP server for control plane
+- **Web Dashboard**: Modern React UI with real-time monitoring
 - **Persistent Storage**: PostgreSQL or in-memory state store
 - **Health Checks**: Liveness and readiness probes (HTTP, TCP, Exec)
 - **Hot Reloading**: Air integration for rapid development
@@ -23,6 +23,7 @@ controller with REST API, worker agents that manage containers via Docker, and a
 
 - Go 1.25 or later
 - Docker Engine
+- Node.js 18+ (for web dashboard)
 - Make (optional, for convenience)
 - PostgreSQL 12+ (optional, for persistent storage)
 
@@ -53,17 +54,6 @@ make run
 ```
 
 The master automatically loads `.env` if present, so no need to export variables manually.
-
-### Running with In-Memory Store (Development)
-
-```bash
-# Default mode - no configuration needed
-make dev
-
-# Or explicitly set
-export STORE_TYPE=memory
-make run
-```
 
 ### Development
 
@@ -112,6 +102,14 @@ podling/
 │       ├── agent/         # Worker agent and pod executor
 │       ├── docker/        # Docker SDK integration
 │       └── health/        # Health check implementations
+├── web/                   # Web dashboard (React)
+│   ├── src/
+│   │   ├── api/           # API client and types
+│   │   ├── components/    # UI components
+│   │   ├── hooks/         # React Query hooks
+│   │   ├── pages/         # Page components
+│   │   └── lib/           # Utilities
+│   └── package.json
 ├── docs/                  # Documentation
 │   ├── postman/           # Postman collection for API testing
 │   ├── POSTMAN_GUIDE.md   # API testing guide
@@ -125,19 +123,28 @@ podling/
 
 ### Components
 
-| Component  | Responsibility                                    | Port  |
-|------------|---------------------------------------------------|-------|
-| **Master** | Task scheduling, API server, state management     | 8080  |
-| **Worker** | Container execution, status reporting, heartbeats | 8081+ |
-| **CLI**    | User interface for task submission and monitoring | -     |
+| Component      | Responsibility                                    | Port  |
+|----------------|---------------------------------------------------|-------|
+| **Master**     | Task scheduling, API server, state management     | 8080  |
+| **Worker**     | Container execution, status reporting, heartbeats | 8081+ |
+| **CLI**        | User interface for task submission and monitoring | -     |
+| **Dashboard**  | Web UI for monitoring and management              | 5173  |
 
 ### Technology Stack
 
+**Backend:**
 - **Language**: Go 1.25
 - **Web Framework**: [Echo v4](https://echo.labstack.com/) - High performance, minimalist
 - **Container Runtime**: [Docker Engine API](https://docs.docker.com/engine/api/)
 - **Hot Reload**: [Air](https://github.com/air-verse/air) - Live reload for Go apps
 - **Testing**: Go's built-in testing with race detector
+
+**Frontend:**
+- **Framework**: React 19 with TypeScript
+- **Build Tool**: [Vite](https://vite.dev/) - Next generation frontend tooling
+- **UI Components**: [shadcn/ui](https://ui.shadcn.com/) - Beautifully designed components
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) - Utility-first CSS
+- **Data Fetching**: [TanStack Query](https://tanstack.com/query) - Powerful async state management
 
 ## API Documentation
 
@@ -416,6 +423,41 @@ pending → scheduled → running → succeeded/failed
 - **running**: All containers in pod are running
 - **succeeded**: All containers exited with code 0
 - **failed**: One or more containers failed
+
+## Web Dashboard
+
+The web dashboard provides a modern UI for monitoring and managing your Podling cluster.
+
+### Running the Dashboard
+
+```bash
+# Install dependencies (first time only)
+cd web
+npm install
+
+# Start development server
+npm run dev
+```
+
+The dashboard will be available at `http://localhost:5173` and connects to the master API at `http://localhost:8080`.
+
+### Features
+
+- **Overview**: Cluster statistics with node, pod, task, and service counts
+- **Nodes**: View worker nodes with resource usage (CPU/Memory)
+- **Pods**: List and inspect multi-container pods
+- **Tasks**: Monitor single-container task execution
+- **Services**: View service discovery and endpoints
+- **Auto-refresh**: Data updates every 5 seconds
+
+### Building for Production
+
+```bash
+cd web
+npm run build
+```
+
+The built files will be in `web/dist/` and can be served by any static file server.
 
 ## CLI Usage
 
