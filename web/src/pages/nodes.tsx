@@ -1,16 +1,28 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useNodes, useTableSort } from '@/hooks'
+import { useNodes, usePods, useTableSort } from '@/hooks'
 import { StatusBadge, TimestampDisplay, ResourceGauge, SortableHeader } from '@/components/shared'
 import { formatBytes, formatCPU } from '@/lib/formatters'
 import type { Node } from '@/api/types'
 
 export function Nodes() {
   const { data: nodes, isLoading } = useNodes()
+  const { data: pods } = usePods()
   const { sortedData, sort, toggleSort } = useTableSort<Node>(nodes, 'hostname')
+
+  const podCountByNode = useMemo(() => {
+    if (!pods) return {}
+    return pods.reduce((acc, pod) => {
+      if (pod.nodeId && pod.status === 'running') {
+        acc[pod.nodeId] = (acc[pod.nodeId] || 0) + 1
+      }
+      return acc
+    }, {} as Record<string, number>)
+  }, [pods])
 
   return (
     <>
@@ -37,9 +49,7 @@ export function Nodes() {
                     <TableHead>
                       <SortableHeader label="Status" sortKey="status" currentSort={sort} onSort={toggleSort} />
                     </TableHead>
-                    <TableHead>
-                      <SortableHeader label="Running Tasks" sortKey="runningTasks" currentSort={sort} onSort={toggleSort} />
-                    </TableHead>
+                    <TableHead>Running Pods</TableHead>
                     <TableHead>CPU</TableHead>
                     <TableHead>Memory</TableHead>
                     <TableHead>
@@ -61,7 +71,7 @@ export function Nodes() {
                       <TableCell>
                         <StatusBadge status={node.status} />
                       </TableCell>
-                      <TableCell>{node.runningTasks}</TableCell>
+                      <TableCell>{podCountByNode[node.nodeId] || 0}</TableCell>
                       <TableCell>
                         {node.resources ? (
                           <ResourceGauge
