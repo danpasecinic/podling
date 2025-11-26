@@ -51,7 +51,12 @@ func main() {
 
 	authConfig, authStore := initAuth(store)
 	authMiddleware := auth.NewMiddleware(authConfig, authStore)
-	authMiddleware.SetSkipPaths("/health", "/api/v1/auth/login", "/api/v1/auth/refresh")
+	authMiddleware.SetSkipPaths(
+		"/health",
+		"/api/v1/auth/login",
+		"/api/v1/auth/refresh",
+	)
+	authMiddleware.SetSkipPrefixes("/api/v1/nodes/")
 
 	if authConfig.Enabled {
 		bootstrapAdminUser(authStore, authConfig)

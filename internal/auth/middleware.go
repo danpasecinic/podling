@@ -15,11 +15,12 @@ const (
 )
 
 type Middleware struct {
-	config     Config
-	jwtManager *JWTManager
-	keyManager *APIKeyManager
-	authStore  AuthStore
-	skipPaths  map[string]bool
+	config       Config
+	jwtManager   *JWTManager
+	keyManager   *APIKeyManager
+	authStore    AuthStore
+	skipPaths    map[string]bool
+	skipPrefixes []string
 }
 
 func NewMiddleware(config Config, authStore AuthStore) *Middleware {
@@ -45,6 +46,10 @@ func (m *Middleware) SetSkipPaths(paths ...string) {
 	}
 }
 
+func (m *Middleware) SetSkipPrefixes(prefixes ...string) {
+	m.skipPrefixes = append(m.skipPrefixes, prefixes...)
+}
+
 func (m *Middleware) JWTManager() *JWTManager {
 	return m.jwtManager
 }
@@ -66,9 +71,14 @@ func (m *Middleware) Authenticate() echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			path := c.Path()
+			path := c.Request().URL.Path
 			if m.skipPaths[path] {
 				return next(c)
+			}
+			for _, prefix := range m.skipPrefixes {
+				if strings.HasPrefix(path, prefix) {
+					return next(c)
+				}
 			}
 
 			authHeader := c.Request().Header.Get("Authorization")
