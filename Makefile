@@ -108,12 +108,10 @@ run-cluster: build
 	@echo "  Worker 1: http://localhost:8071"
 	@echo "  Worker 2: http://localhost:8072"
 	@echo ""
-	@echo "Logs:"
-	@echo "  Master:   tail -f /tmp/podling-master.log"
-	@echo "  Worker 1: tail -f /tmp/podling-worker-1.log"
-	@echo "  Worker 2: tail -f /tmp/podling-worker-2.log"
+	@echo "Press Ctrl+C to stop streaming logs (cluster keeps running)"
+	@echo "Stop cluster with: make stop-cluster"
 	@echo ""
-	@echo "Stop with: make stop-cluster"
+	@tail -f /tmp/podling-master.log /tmp/podling-worker-1.log /tmp/podling-worker-2.log
 
 # Stop all podling processes
 stop-cluster:

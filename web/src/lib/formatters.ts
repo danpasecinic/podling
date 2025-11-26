@@ -20,9 +20,6 @@ export function formatRelativeTime(dateString: string): string {
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffSec = Math.floor(diffMs / 1000)
-
-  if (diffSec < 0) return 'just now'
-
   const diffMin = Math.floor(diffSec / 60)
   const diffHour = Math.floor(diffMin / 60)
   const diffDay = Math.floor(diffHour / 24)
