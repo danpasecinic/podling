@@ -2,9 +2,7 @@ name: PR Automation
 
 on:
   pull_request:
-    types: [ opened, synchronize, reopened, labeled, unlabeled ]
-  pull_request_target:
-    types: [ opened, synchronize ]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -15,7 +13,6 @@ jobs:
   auto-label:
     name: Auto Label PR
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -44,7 +41,6 @@ jobs:
           xl_label: 'size/xl'
           fail_if_xl: false
           message_if_xl: 'This PR is very large. Consider breaking it into smaller PRs.'
-          github_api_url: 'https://api.github.com'
 
   pr-checklist:
     name: PR Checklist Comment
@@ -80,4 +76,3 @@ jobs:
               repo: context.repo.repo,
               body: body
             });
-
