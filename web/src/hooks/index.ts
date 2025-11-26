@@ -1,3 +1,5 @@
 export * from './queries'
 export { useIsMobile } from './use-mobile'
 export { useAuth, AuthProvider } from './use-auth'
+export { useTableSort } from './use-table-sort'
+export type { SortDirection, SortState } from './use-table-sort'

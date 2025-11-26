@@ -3,11 +3,13 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTasks } from '@/hooks'
-import { StatusBadge, HealthBadge, TimestampDisplay } from '@/components/shared'
+import { useTasks, useTableSort } from '@/hooks'
+import { StatusBadge, HealthBadge, TimestampDisplay, SortableHeader } from '@/components/shared'
+import type { Task } from '@/api/types'
 
 export function Tasks() {
   const { data: tasks, isLoading } = useTasks()
+  const { sortedData, sort, toggleSort } = useTableSort<Task>(tasks, 'name')
 
   return (
     <>
@@ -24,20 +26,32 @@ export function Tasks() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : tasks && tasks.length > 0 ? (
+            ) : sortedData && sortedData.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Image</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Health</TableHead>
-                    <TableHead>Node</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead>
+                      <SortableHeader label="Name" sortKey="name" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Image" sortKey="image" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Status" sortKey="status" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Health" sortKey="healthStatus" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Node" sortKey="nodeId" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Created" sortKey="createdAt" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tasks.map((task) => (
+                  {sortedData.map((task) => (
                     <TableRow key={task.taskId}>
                       <TableCell>
                         <Link
