@@ -55,12 +55,9 @@ func main() {
 		"/health",
 		"/api/v1/auth/login",
 		"/api/v1/auth/refresh",
+		"/api/v1/auth/signup",
 	)
 	authMiddleware.SetSkipPrefixes("/api/v1/nodes/")
-
-	if authConfig.Enabled {
-		bootstrapAdminUser(authStore, authConfig)
-	}
 
 	e := echo.New()
 	e.Use(middleware.Logger())
@@ -147,10 +144,7 @@ func maskPassword() string {
 
 func initAuth(pgStore *state.PostgresStateStore) (auth.Config, auth.AuthStore) {
 	config := auth.DefaultConfig()
-
-	if enabled := os.Getenv("AUTH_ENABLED"); enabled == "true" || enabled == "1" {
-		config.Enabled = true
-	}
+	config.Enabled = true
 
 	config.JWTSecret = os.Getenv("JWT_SECRET")
 	if config.JWTSecret == "" {
@@ -170,50 +164,5 @@ func initAuth(pgStore *state.PostgresStateStore) (auth.Config, auth.AuthStore) {
 
 	authStore := auth.NewPostgresAuthStore(pgStore.DB())
 
-	if config.Enabled {
-		log.Println("authentication enabled")
-	} else {
-		log.Println("authentication disabled (set AUTH_ENABLED=true to enable)")
-	}
-
 	return config, authStore
-}
-
-func bootstrapAdminUser(authStore auth.AuthStore, config auth.Config) {
-	username := os.Getenv("ADMIN_USERNAME")
-	if username == "" {
-		username = "admin"
-	}
-
-	password := os.Getenv("ADMIN_PASSWORD")
-	if password == "" {
-		password = "admin123"
-		log.Println("WARNING: using default admin password. Set ADMIN_PASSWORD environment variable in production")
-	}
-
-	_, err := authStore.GetUserByUsername(username)
-	if err == nil {
-		return
-	}
-
-	passwordHash, err := auth.HashPassword(password)
-	if err != nil {
-		log.Printf("failed to hash admin password: %v", err)
-		return
-	}
-
-	user := auth.User{
-		ID:           "user-admin-bootstrap",
-		Username:     username,
-		PasswordHash: passwordHash,
-		Role:         auth.RoleAdmin,
-		CreatedAt:    time.Now(),
-	}
-
-	if err := authStore.AddUser(user); err != nil {
-		log.Printf("failed to create admin user: %v", err)
-		return
-	}
-
-	log.Printf("admin user '%s' created successfully", username)
 }
