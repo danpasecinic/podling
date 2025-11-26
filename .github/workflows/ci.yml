@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   lint:
-    name: Lint
+    name: Lint Go
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -32,7 +32,7 @@ jobs:
           args: --timeout=5m
 
   test:
-    name: Test
+    name: Test Go
     runs-on: ubuntu-latest
 
     services:
@@ -81,7 +81,7 @@ jobs:
           # Calculate coverage for internal/ packages only (exclude cmd/)
           INTERNAL_COVERAGE=$(go tool cover -func=coverage.out | grep "internal/" | awk '{sum += $3; count++} END {print sum/count}')
           echo "Internal packages coverage: ${INTERNAL_COVERAGE}%"
-          
+
           if (( $(echo "INTERNAL_COVERAGE < 60" | bc -l) )); then
             echo "❌ Coverage $INTERNAL_COVERAGE% is below minimum 60%"
             exit 1
@@ -97,3 +97,36 @@ jobs:
           verbose: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 7
