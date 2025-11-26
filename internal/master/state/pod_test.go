@@ -342,6 +342,7 @@ func TestPodHelperMethods(t *testing.T) {
 			container := pod.GetContainerByName("nginx")
 			if container == nil {
 				t.Fatal("expected to find nginx container")
+				return
 			}
 			if container.Image != "nginx:latest" {
 				t.Errorf("expected image nginx:latest, got %s", container.Image)

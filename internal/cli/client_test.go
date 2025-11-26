@@ -497,9 +497,9 @@ func TestNewClient(t *testing.T) {
 		"creates client with custom URL", func(t *testing.T) {
 			url := "http://custom:9090"
 			client := NewClient(url)
-
 			if client == nil {
 				t.Fatal("NewClient() returned nil")
+				return
 			}
 
 			if client.baseURL != url {
