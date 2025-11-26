@@ -2,15 +2,14 @@ package api
 
 import (
 	"bytes"
-	cryptoRand "crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net/http"
 	"time"
 
 	"github.com/danpasecinic/podling/internal/master/state"
 	"github.com/danpasecinic/podling/internal/types"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -240,20 +239,7 @@ func (s *Server) ListNodes(c echo.Context) error {
 }
 
 func generateID() string {
-	return time.Now().Format("20060102150405") + "-" + randString(8)
-}
-
-func randString(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, n)
-	for i := range b {
-		idx, err := cryptoRand.Int(cryptoRand.Reader, big.NewInt(int64(len(letters))))
-		if err != nil {
-			panic(err)
-		}
-		b[i] = letters[idx.Int64()]
-	}
-	return string(b)
+	return uuid.New().String()
 }
 
 func ptrTo[T any](v T) *T {

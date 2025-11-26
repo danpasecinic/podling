@@ -16,6 +16,7 @@ import {
   ServiceDetail,
   Settings,
   Login,
+  Signup,
 } from '@/pages'
 
 const queryClient = new QueryClient({
@@ -35,6 +36,7 @@ function App() {
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
               <Route
                 element={
                   <ProtectedRoute>

@@ -11,7 +11,7 @@ interface HeaderProps {
 
 export function Header({ title }: HeaderProps) {
   const queryClient = useQueryClient()
-  const { user, logout, authEnabled } = useAuth()
+  const { user, logout } = useAuth()
 
   const handleRefresh = () => queryClient.invalidateQueries()
 
@@ -24,7 +24,7 @@ export function Header({ title }: HeaderProps) {
         <Button variant="ghost" size="icon" onClick={handleRefresh}>
           <RefreshCw className="h-4 w-4" />
         </Button>
-        {authEnabled && user && (
+        {user && (
           <>
             <Separator orientation="vertical" className="h-6" />
             <span className="text-sm text-muted-foreground">{user.username}</span>

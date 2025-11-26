@@ -4,11 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { useServices } from '@/hooks'
-import { LabelBadges, TimestampDisplay } from '@/components/shared'
+import { useServices, useTableSort } from '@/hooks'
+import { LabelBadges, TimestampDisplay, SortableHeader } from '@/components/shared'
+import type { Service } from '@/api/types'
 
 export function Services() {
   const { data: services, isLoading } = useServices()
+  const { sortedData, sort, toggleSort } = useTableSort<Service>(services, 'name')
 
   return (
     <>
@@ -25,21 +27,31 @@ export function Services() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : services && services.length > 0 ? (
+            ) : sortedData && sortedData.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Namespace</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Cluster IP</TableHead>
+                    <TableHead>
+                      <SortableHeader label="Name" sortKey="name" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Namespace" sortKey="namespace" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Type" sortKey="type" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Cluster IP" sortKey="clusterIp" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
                     <TableHead>Ports</TableHead>
                     <TableHead>Selector</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead>
+                      <SortableHeader label="Created" sortKey="createdAt" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {services.map((service) => (
+                  {sortedData.map((service) => (
                     <TableRow key={service.serviceId}>
                       <TableCell>
                         <Link

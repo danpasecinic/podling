@@ -3,20 +3,20 @@ import {
   type AuthState,
   type LoginRequest,
   login as apiLogin,
+  signup as apiSignup,
   refreshToken as apiRefreshToken,
   getStoredAuth,
   setStoredAuth,
   clearStoredAuth,
-  checkHealth,
 } from '@/api/auth'
 
 interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
-  authEnabled: boolean
   user: AuthState['user']
   token: string | null
   login: (credentials: LoginRequest) => Promise<void>
+  signup: (credentials: LoginRequest) => Promise<void>
   logout: () => void
 }
 
@@ -25,20 +25,10 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [authEnabled, setAuthEnabled] = useState(true)
 
   useEffect(() => {
     const init = async () => {
       try {
-        const health = await checkHealth()
-        const enabled = health.authEnabled === 'true'
-        setAuthEnabled(enabled)
-
-        if (!enabled) {
-          setIsLoading(false)
-          return
-        }
-
         const stored = getStoredAuth()
         if (stored?.token && stored?.expiresAt) {
           const expiresAt = new Date(stored.expiresAt)
@@ -64,8 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearStoredAuth()
           }
         }
-      } catch {
-        setAuthEnabled(true)
       } finally {
         setIsLoading(false)
       }
@@ -115,6 +103,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthState(state)
   }, [])
 
+  const signup = useCallback(async (credentials: LoginRequest) => {
+    const response = await apiSignup(credentials)
+    const state: AuthState = {
+      token: response.token,
+      refreshToken: response.refreshToken,
+      expiresAt: response.expiresAt,
+      user: response.user,
+    }
+    setStoredAuth(state)
+    setAuthState(state)
+  }, [])
+
   const logout = useCallback(() => {
     clearStoredAuth()
     setAuthState(null)
@@ -123,10 +123,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     isAuthenticated: !!authState?.token,
     isLoading,
-    authEnabled,
     user: authState?.user ?? null,
     token: authState?.token ?? null,
     login,
+    signup,
     logout,
   }
 

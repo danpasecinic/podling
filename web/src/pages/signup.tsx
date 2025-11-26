@@ -1,44 +1,58 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import axios from 'axios'
 
-export function Login() {
+export function Signup() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { login, isAuthenticated, isLoading } = useAuth()
+  const { signup, isAuthenticated, isLoading } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/'
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate(from, { replace: true })
+      navigate('/', { replace: true })
     }
-  }, [isLoading, isAuthenticated, navigate, from])
+  }, [isLoading, isAuthenticated, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters')
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      await login({ username, password })
-      navigate(from, { replace: true })
+      await signup({ username, password })
+      navigate('/', { replace: true })
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.data?.error) {
         setError(err.response.data.error)
       } else if (err instanceof Error) {
         setError(err.message)
       } else {
-        setError('Invalid credentials')
+        setError('Failed to create account')
       }
     } finally {
       setIsSubmitting(false)
@@ -49,8 +63,8 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Podling</CardTitle>
-          <CardDescription>Sign in to access the dashboard</CardDescription>
+          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
+          <CardDescription>Sign up to access the Podling dashboard</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -68,7 +82,7 @@ export function Login() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
+                placeholder="Choose a username"
                 autoComplete="username"
                 disabled={isSubmitting}
                 required
@@ -83,19 +97,34 @@ export function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                autoComplete="current-password"
+                placeholder="Choose a password"
+                autoComplete="new-password"
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="confirmPassword" className="text-sm font-medium">
+                Confirm Password
+              </label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
+                autoComplete="new-password"
                 disabled={isSubmitting}
                 required
               />
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Signing in...' : 'Sign in'}
+              {isSubmitting ? 'Creating account...' : 'Create account'}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <Link to="/signup" className="text-primary hover:underline">
-                Sign up
+              Already have an account?{' '}
+              <Link to="/login" className="text-primary hover:underline">
+                Sign in
               </Link>
             </p>
           </form>

@@ -57,6 +57,14 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   return response.data
 }
 
+export async function signup(credentials: LoginRequest): Promise<LoginResponse> {
+  const response = await axios.post<LoginResponse>(
+    `${API_BASE}/auth/signup`,
+    credentials
+  )
+  return response.data
+}
+
 export async function refreshToken(token: string): Promise<{ token: string; expiresAt: string }> {
   const response = await axios.post<{ token: string; expiresAt: string }>(
     `${API_BASE}/auth/refresh`,
@@ -73,10 +81,5 @@ export async function getCurrentUser(token: string): Promise<{
   const response = await axios.get(`${API_BASE}/auth/me`, {
     headers: {Authorization: `Bearer ${token}`},
   })
-  return response.data
-}
-
-export async function checkHealth(): Promise<{ authEnabled: string }> {
-  const response = await axios.get<{ authEnabled: string }>('/health')
   return response.data
 }

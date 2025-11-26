@@ -3,11 +3,13 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { usePods } from '@/hooks'
-import { StatusBadge, LabelBadges, TimestampDisplay } from '@/components/shared'
+import { usePods, useTableSort } from '@/hooks'
+import { StatusBadge, LabelBadges, TimestampDisplay, SortableHeader } from '@/components/shared'
+import type { Pod } from '@/api/types'
 
 export function Pods() {
   const { data: pods, isLoading } = usePods()
+  const { sortedData, sort, toggleSort } = useTableSort<Pod>(pods, 'name')
 
   return (
     <>
@@ -24,21 +26,31 @@ export function Pods() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : pods && pods.length > 0 ? (
+            ) : sortedData && sortedData.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Namespace</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>
+                      <SortableHeader label="Name" sortKey="name" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Namespace" sortKey="namespace" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
+                    <TableHead>
+                      <SortableHeader label="Status" sortKey="status" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
                     <TableHead>Containers</TableHead>
-                    <TableHead>Node</TableHead>
+                    <TableHead>
+                      <SortableHeader label="Node" sortKey="nodeId" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
                     <TableHead>Labels</TableHead>
-                    <TableHead>Age</TableHead>
+                    <TableHead>
+                      <SortableHeader label="Age" sortKey="createdAt" currentSort={sort} onSort={toggleSort} />
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pods.map((pod) => {
+                  {sortedData.map((pod) => {
                     const runningContainers = pod.containers.filter(
                       (c) => c.status === 'running'
                     ).length

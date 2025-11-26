@@ -95,11 +95,15 @@ uninstall:
 	@sudo rm -f /usr/local/bin/podling-worker
 	@echo "✓ Uninstalled successfully!"
 
-# Run master and workers together
-run-cluster: build
+# Run cluster with all logs streaming
+run-cluster:
 	@echo "Starting Podling cluster..."
+	@go build -o bin/podling-master ./cmd/master
+	@go build -o bin/podling-worker ./cmd/worker
+	@echo "Starting master..."
 	@./bin/podling-master > /tmp/podling-master.log 2>&1 & echo $$! > /tmp/podling-master.pid
-	@sleep 2
+	@sleep 3
+	@echo "Starting workers..."
 	@./bin/podling-worker -node-id=worker-1 -port=8071 > /tmp/podling-worker-1.log 2>&1 & echo $$! > /tmp/podling-worker-1.pid
 	@./bin/podling-worker -node-id=worker-2 -port=8072 > /tmp/podling-worker-2.log 2>&1 & echo $$! > /tmp/podling-worker-2.pid
 	@sleep 1
@@ -108,12 +112,8 @@ run-cluster: build
 	@echo "  Worker 1: http://localhost:8071"
 	@echo "  Worker 2: http://localhost:8072"
 	@echo ""
-	@echo "Logs:"
-	@echo "  Master:   tail -f /tmp/podling-master.log"
-	@echo "  Worker 1: tail -f /tmp/podling-worker-1.log"
-	@echo "  Worker 2: tail -f /tmp/podling-worker-2.log"
-	@echo ""
-	@echo "Stop with: make stop-cluster"
+	@echo "Streaming logs (Ctrl+C to stop)..."
+	@tail -f /tmp/podling-master.log /tmp/podling-worker-1.log /tmp/podling-worker-2.log
 
 # Stop all podling processes
 stop-cluster:

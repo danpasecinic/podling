@@ -88,16 +88,6 @@ jobs:
           fi
           echo "✅ Coverage $INTERNAL_COVERAGE% meets minimum requirement"
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        if: success()
-        with:
-          files: ./coverage.out
-          fail_ci_if_error: false
-          verbose: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
   build-web:
     name: Build Web
     runs-on: ubuntu-latest

@@ -2,10 +2,10 @@ package auth
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -32,6 +32,7 @@ func (h *AuthHandlers) RegisterRoutes(e *echo.Echo, authMiddleware *Middleware) 
 
 	auth.POST("/login", h.Login)
 	auth.POST("/refresh", h.RefreshToken)
+	auth.POST("/signup", h.Signup)
 
 	protected := auth.Group("")
 	protected.Use(authMiddleware.Authenticate())
@@ -86,6 +87,71 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 
 	return c.JSON(
 		http.StatusOK, LoginResponse{
+			Token:        token,
+			RefreshToken: refreshToken,
+			ExpiresAt:    expiresAt,
+			User: UserInfo{
+				ID:       user.ID,
+				Username: user.Username,
+				Role:     user.Role,
+			},
+		},
+	)
+}
+
+type SignupRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (h *AuthHandlers) Signup(c echo.Context) error {
+	var req SignupRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+
+	if req.Username == "" || req.Password == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "username and password are required"})
+	}
+
+	if len(req.Username) < 3 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "username must be at least 3 characters"})
+	}
+
+	passwordHash, err := HashPassword(req.Password)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	now := time.Now()
+	user := User{
+		ID:           uuid.New().String(),
+		Username:     req.Username,
+		PasswordHash: passwordHash,
+		Role:         RoleViewer,
+		CreatedAt:    now,
+		Disabled:     false,
+	}
+
+	if err := h.authStore.AddUser(user); err != nil {
+		if errors.Is(err, ErrUserAlreadyExists) {
+			return c.JSON(http.StatusConflict, map[string]string{"error": "username already exists"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create account"})
+	}
+
+	token, expiresAt, err := h.jwtManager.GenerateToken(&user)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to generate token"})
+	}
+
+	refreshToken, _, err := h.jwtManager.GenerateRefreshToken(&user)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to generate refresh token"})
+	}
+
+	return c.JSON(
+		http.StatusCreated, LoginResponse{
 			Token:        token,
 			RefreshToken: refreshToken,
 			ExpiresAt:    expiresAt,
@@ -220,7 +286,7 @@ func (h *AuthHandlers) CreateUser(c echo.Context) error {
 
 	now := time.Now()
 	user := User{
-		ID:           fmt.Sprintf("user-%s-%s", now.Format("20060102150405"), randomString(8)),
+		ID:           uuid.New().String(),
 		Username:     req.Username,
 		PasswordHash: passwordHash,
 		Role:         req.Role,

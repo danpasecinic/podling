@@ -1,4 +1,5 @@
 export function formatBytes(bytes: number): string {
+  if (bytes == null || isNaN(bytes)) return '0 B'
   if (bytes === 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'Ki', 'Mi', 'Gi', 'Ti']
@@ -7,6 +8,7 @@ export function formatBytes(bytes: number): string {
 }
 
 export function formatCPU(millicores: number): string {
+  if (millicores == null || isNaN(millicores)) return '0m'
   if (millicores >= 1000) {
     return `${(millicores / 1000).toFixed(1)} cores`
   }
