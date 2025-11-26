@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -63,25 +65,16 @@ func (m *APIKeyManager) CreateAPIKey(name string, nodeID string, role Role) (*AP
 		return nil, "", err
 	}
 
-	now := time.Now()
-	id := fmt.Sprintf("ak-%s-%s", now.Format("20060102150405"), randomString(8))
-
 	apiKey := &APIKey{
-		ID:        id,
+		ID:        uuid.New().String(),
 		KeyHash:   keyHash,
 		KeyPrefix: keyPrefix,
 		Name:      name,
 		NodeID:    nodeID,
 		Role:      role,
-		CreatedAt: now,
+		CreatedAt: time.Now(),
 		Revoked:   false,
 	}
 
 	return apiKey, plainKey, nil
-}
-
-func randomString(n int) string {
-	bytes := make([]byte, n)
-	_, _ = rand.Read(bytes)
-	return hex.EncodeToString(bytes)[:n]
 }

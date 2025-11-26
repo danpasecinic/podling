@@ -2,10 +2,10 @@ package auth
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -125,7 +125,7 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 
 	now := time.Now()
 	user := User{
-		ID:           fmt.Sprintf("user-%s-%s", now.Format("20060102150405"), randomString(8)),
+		ID:           uuid.New().String(),
 		Username:     req.Username,
 		PasswordHash: passwordHash,
 		Role:         RoleViewer,
@@ -286,7 +286,7 @@ func (h *AuthHandlers) CreateUser(c echo.Context) error {
 
 	now := time.Now()
 	user := User{
-		ID:           fmt.Sprintf("user-%s-%s", now.Format("20060102150405"), randomString(8)),
+		ID:           uuid.New().String(),
 		Username:     req.Username,
 		PasswordHash: passwordHash,
 		Role:         req.Role,
