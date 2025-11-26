@@ -20,7 +20,7 @@ import (
 func main() {
 	nodeID := flag.String("node-id", "", "Node ID (required)")
 	hostname := flag.String("hostname", "localhost", "Worker hostname")
-	port := flag.Int("port", 8081, "Worker port")
+	port := flag.Int("port", 8071, "Worker port")
 	masterURL := flag.String("master-url", "http://localhost:8070", "Master API URL")
 	apiKey := flag.String("api-key", "", "API key for authentication with master")
 	heartbeatInterval := flag.Duration("heartbeat-interval", 30*time.Second, "Heartbeat interval")

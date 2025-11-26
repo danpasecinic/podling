@@ -9,7 +9,9 @@ interface ResourceGaugeProps {
 }
 
 export function ResourceGauge({ label, used, total, formatValue, className }: ResourceGaugeProps) {
-  const percentage = total > 0 ? Math.round((used / total) * 100) : 0
+  const safeUsed = used ?? 0
+  const safeTotal = total ?? 0
+  const percentage = safeTotal > 0 ? Math.round((safeUsed / safeTotal) * 100) : 0
   const getColor = () => {
     if (percentage >= 90) return 'bg-red-500'
     if (percentage >= 70) return 'bg-yellow-500'
@@ -21,7 +23,7 @@ export function ResourceGauge({ label, used, total, formatValue, className }: Re
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">{label}</span>
         <span className="font-medium">
-          {formatValue(used)} / {formatValue(total)}
+          {formatValue(safeUsed)} / {formatValue(safeTotal)}
         </span>
       </div>
       <div className="h-2 bg-secondary rounded-full overflow-hidden">

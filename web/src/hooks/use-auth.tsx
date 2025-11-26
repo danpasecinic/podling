@@ -66,6 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         setAuthEnabled(true)
+        const stored = getStoredAuth()
+        if (stored?.token && stored?.expiresAt) {
+          const expiresAt = new Date(stored.expiresAt)
+          if (expiresAt > new Date()) {
+            setAuthState(stored)
+          } else {
+            clearStoredAuth()
+          }
+        }
       } finally {
         setIsLoading(false)
       }
