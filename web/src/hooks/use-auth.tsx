@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value: AuthContextValue = {
-    isAuthenticated: !authEnabled || !!authState?.token,
+    isAuthenticated: !!authState?.token,
     isLoading,
     authEnabled,
     user: authState?.user ?? null,
