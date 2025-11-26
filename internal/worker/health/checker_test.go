@@ -359,6 +359,7 @@ func TestNewChecker_WithRealDockerClient(t *testing.T) {
 
 	if checker == nil {
 		t.Fatal("expected checker to be created")
+		return
 	}
 
 	if checker.taskID != "task-1" {

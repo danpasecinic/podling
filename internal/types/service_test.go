@@ -28,6 +28,7 @@ func TestService_GetPortByName(t *testing.T) {
 	port = service.GetPortByName("https")
 	if port == nil {
 		t.Fatal("Expected to find port 'https'")
+		return
 	}
 	if port.Port != 443 {
 		t.Errorf("Expected port 443, got %d", port.Port)
