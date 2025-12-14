@@ -74,12 +74,9 @@ The database schema will be automatically created on first startup.
 2. **Create database and user:**
 
 ```sql
-CREATE
-DATABASE podling;
-CREATE
-USER podling WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE
-podling TO podling;
+CREATE DATABASE podling;
+CREATE USER podling WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE podling TO podling;
 ```
 
 3. **Configure connection:**
