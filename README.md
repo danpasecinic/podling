@@ -6,637 +6,101 @@
 A lightweight, educational container orchestrator built from scratch in Go. Inspired by Kubernetes, it features a master
 controller with REST API, worker agents that manage containers via Docker, and a CLI tool.
 
-<img width="3828" height="2350" alt="ZCsgkeEZ" src="https://github.com/user-attachments/assets/b146f06a-6e8a-47e0-9a68-2652e105953a" />
-
 ## Features
 
 - **Master-Worker Architecture**: Distributed container management
-- **Multi-Container Pods**: Kubernetes-style pods with shared lifecycle
+- **Multi-Container Pods**: Kubernetes-style pods with shared lifecycle and networking
+- **Service Discovery**: ClusterIP allocation with DNS resolution
 - **REST API**: Echo-based HTTP server for control plane
 - **Web Dashboard**: Modern React UI with real-time monitoring
-- **Persistent Storage**: PostgreSQL or in-memory state store
 - **Health Checks**: Liveness and readiness probes (HTTP, TCP, Exec)
-- **Hot Reloading**: Air integration for rapid development
-- **Production Patterns**: Following golang-standards/project-layout
+- **Persistent Storage**: PostgreSQL or in-memory state store
 
 ## Quick Start
 
 ### Prerequisites
 
-- Go 1.25 or later
-- Docker Engine
-- Node.js 18+ (for web dashboard)
-- Make (optional, for convenience)
-- PostgreSQL 12+ (optional, for persistent storage)
+- Go 1.25+, Docker Engine, Node.js 18+ (for dashboard)
 
-### Installation
+### Run
 
 ```bash
-# Clone the repository
-git clone https://github.com/danpasecinic/podling.git
-cd podling
+git clone https://github.com/danpasecinic/podling.git && cd podling
 
-# Install dependencies
-go mod download
-
-# Install development tools (Air, linters)
-make install-tools
-```
-
-### Running with PostgreSQL (Recommended)
-
-```bash
-# Start PostgreSQL using docker-compose
+# Start PostgreSQL
 docker-compose up -d
 
-# Configure via .env file (easiest method)
+# Configure and run master
 cp .env.example .env
-# Edit .env to set STORE_TYPE=postgres
 make run
+
+# In another terminal, start a worker
+make build
+./bin/podling-worker -node-id=worker-1
 ```
 
-The master automatically loads `.env` if present, so no need to export variables manually.
-
-### Development
+### Basic Usage
 
 ```bash
-# Run with hot reloading
-make dev
+# Run a container
+./bin/podling run my-nginx --image nginx:latest
 
-# Or run directly
-make run
+# Create a multi-container pod
+./bin/podling pod create my-app \
+  --container app:myapp:1.0:PORT=8080 \
+  --container sidecar:nginx:latest
 
-# Run tests
-make test
+# Create a service
+./bin/podling service create web --selector app=nginx --port 80
 
-# Run tests with coverage
-make test-coverage
-
-# Run tests with race detector
-make test-race
-
-# Run PostgreSQL tests (requires running database)
-export TEST_DATABASE_URL="postgres://podling:podling123@localhost:5432/podling?sslmode=disable"
-go test ./internal/master/state/
-```
-
-## Project Structure
-
-Following the [golang-standards/project-layout](https://github.com/golang-standards/project-layout):
-
-```
-podling/
-├── cmd/                    # Main applications
-│   ├── master/            # Master controller entry point
-│   ├── worker/            # Worker agent entry point
-│   └── podling/           # CLI tool entry point
-├── internal/               # Private application code
-│   ├── types/             # Core data models
-│   │   ├── task.go        # Task model and status
-│   │   ├── pod.go         # Pod and Container models
-│   │   └── node.go        # Node model and status
-│   ├── master/            # Master controller internals
-│   │   ├── api/           # HTTP API handlers (Echo)
-│   │   ├── scheduler/     # Task and pod scheduling logic
-│   │   └── state/         # State management
-│   │       └── migrations/ # Database migrations
-│   └── worker/            # Worker agent internals
-│       ├── agent/         # Worker agent and pod executor
-│       ├── docker/        # Docker SDK integration
-│       └── health/        # Health check implementations
-├── web/                   # Web dashboard (React)
-│   ├── src/
-│   │   ├── api/           # API client and types
-│   │   ├── components/    # UI components
-│   │   ├── hooks/         # React Query hooks
-│   │   ├── pages/         # Page components
-│   │   └── lib/           # Utilities
-│   └── package.json
-├── docs/                  # Documentation
-│   ├── postman/           # Postman collection for API testing
-│   ├── POSTMAN_GUIDE.md   # API testing guide
-│   └── SESSION_STATE.md   # Development session tracking
-├── .air.toml              # Air hot reload configuration
-├── Makefile               # Development commands
-└── go.mod                 # Go module definition
+# View status
+./bin/podling ps
+./bin/podling pod list
+./bin/podling nodes
 ```
 
 ## Architecture
 
-### Components
+| Component | Description                              | Port  |
+|-----------|------------------------------------------|-------|
+| Master    | API server, scheduling, state management | 8070  |
+| Worker    | Container execution, heartbeats          | 8081+ |
+| DNS       | Service discovery resolution             | 5353  |
+| Dashboard | Web UI                                   | 5173  |
 
-| Component      | Responsibility                                    | Port  |
-|----------------|---------------------------------------------------|-------|
-| **Master**     | Task scheduling, API server, state management     | 8070  |
-| **Worker**     | Container execution, status reporting, heartbeats | 8081+ |
-| **DNS Server** | Service discovery DNS resolution                  | 5353  |
-| **CLI**        | User interface for task submission and monitoring | -     |
-| **Dashboard**  | Web UI for monitoring and management              | 5173  |
+```
+podling/
+├── cmd/                    # Main applications (master, worker, CLI)
+├── internal/
+│   ├── types/             # Core data models (Task, Pod, Node, Service)
+│   ├── master/            # API handlers, scheduler, state store
+│   └── worker/            # Docker client, health checks, agent
+├── web/                   # React dashboard
+└── docs/                  # Documentation
+```
 
-### Technology Stack
+<img width="3828" height="2350" alt="Dashboard" src="https://github.com/user-attachments/assets/b146f06a-6e8a-47e0-9a68-2652e105953a" />
 
-**Backend:**
-- **Language**: Go 1.25
-- **Web Framework**: [Echo v4](https://echo.labstack.com/) - High performance, minimalist
-- **Container Runtime**: [Docker Engine API](https://docs.docker.com/engine/api/)
-- **Hot Reload**: [Air](https://github.com/air-verse/air) - Live reload for Go apps
-- **Testing**: Go's built-in testing with race detector
+## Documentation
 
-**Frontend:**
-- **Framework**: React 19 with TypeScript
-- **Build Tool**: [Vite](https://vite.dev/) - Next generation frontend tooling
-- **UI Components**: [shadcn/ui](https://ui.shadcn.com/) - Beautifully designed components
-- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) - Utility-first CSS
-- **Data Fetching**: [TanStack Query](https://tanstack.com/query) - Powerful async state management
+| Document                                 | Description              |
+|------------------------------------------|--------------------------|
+| [API Reference](docs/API.md)             | REST API endpoints       |
+| [CLI Reference](docs/CLI.md)             | Command-line interface   |
+| [Architecture](docs/ARCHITECTURE.md)     | System diagrams          |
+| [Pod Networking](docs/POD_NETWORKING.md) | Shared network namespace |
+| [Storage](docs/STORAGE.md)               | PostgreSQL configuration |
+| [Security](docs/SECURITY.md)             | SSRF prevention          |
+| [Postman Guide](docs/POSTMAN_GUIDE.md)   | API testing              |
 
-## API Documentation
-
-The master controller exposes a RESTful API for managing tasks and worker nodes.
-
-### Running the Master
+## Development
 
 ```bash
-# Build and run the master
-go build -o bin/podling-master ./cmd/master
-./bin/podling-master
-
-# Or use Make
-make build && ./bin/podling-master
-```
-
-The master will start on `http://localhost:8070` with the following endpoints:
-
-### Testing with Postman
-
-Import the provided Postman collection to test all endpoints:
-
-1. Import `docs/postman/Podling.postman_collection.json` into Postman
-2. Import `docs/postman/Podling.postman_environment.json` for local environment
-3. Select "Podling - Local" environment
-4. Start testing the API
-
-See [Postman Guide](docs/POSTMAN_GUIDE.md) for detailed testing workflow.
-
-### Running the Worker
-
-```bash
-# Build and run a worker node
-go build -o bin/podling-worker ./cmd/worker
-./bin/podling-worker -node-id=worker-1 -port=8081
-
-# Or use Make
-make build && ./bin/podling-worker -node-id=worker-1
-
-# Worker configuration options:
-# -node-id: Unique worker identifier (required)
-# -hostname: Worker hostname (default: localhost)
-# -port: Worker port (default: 8081)
-# -master-url: Master API URL (default: http://localhost:8070)
-# -dns-server: DNS server for container resolution (e.g., 192.168.1.1:5353)
-# -heartbeat-interval: Heartbeat interval (default: 30s)
-# -shutdown-timeout: Graceful shutdown timeout (default: 30s)
-```
-
-The worker will:
-
-- Connect to the master and send periodic heartbeats
-- Execute tasks in Docker containers
-- Report task status back to master
-- Stream container logs via API
-- Handle graceful shutdown with task cleanup
-
-### Endpoints
-
-#### Health Check
-
-```bash
-GET /health
-
-curl http://localhost:8080/health
-```
-
-#### Task Management
-
-**Create Task** - Submit a new task for execution
-
-```bash
-POST /api/v1/tasks
-Content-Type: application/json
-
-{
-  "name": "my-nginx-task",
-  "image": "nginx:latest",
-  "env": {
-    "PORT": "8080"
-  }
-}
-
-# Example
-curl -X POST http://localhost:8080/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"name":"nginx-task","image":"nginx:latest"}'
-```
-
-**List Tasks** - Get all tasks
-
-```bash
-GET /api/v1/tasks
-
-curl http://localhost:8080/api/v1/tasks
-```
-
-**Get Task** - Get specific task details
-
-```bash
-GET /api/v1/tasks/{taskId}
-
-curl http://localhost:8080/api/v1/tasks/20250119123456-abc12345
-```
-
-**Update Task Status** - Update task execution status (typically called by workers)
-
-```bash
-PUT /api/v1/tasks/{taskId}/status
-Content-Type: application/json
-
-{
-  "status": "running",
-  "containerId": "docker-container-id"
-}
-
-# Example
-curl -X PUT http://localhost:8080/api/v1/tasks/20250119123456-abc12345/status \
-  -H "Content-Type: application/json" \
-  -d '{"status":"running","containerId":"abc123"}'
-```
-
-#### Node Management
-
-**Register Node** - Register a worker node
-
-```bash
-POST /api/v1/nodes/register
-Content-Type: application/json
-
-{
-  "hostname": "worker-1",
-  "port": 8081,
-  "capacity": 10
-}
-
-# Example
-curl -X POST http://localhost:8080/api/v1/nodes/register \
-  -H "Content-Type: application/json" \
-  -d '{"hostname":"worker-1","port":8081,"capacity":10}'
-```
-
-**Node Heartbeat** - Update node heartbeat
-
-```bash
-POST /api/v1/nodes/{nodeId}/heartbeat
-
-curl -X POST http://localhost:8080/api/v1/nodes/20250119123456-xyz98765/heartbeat
-```
-
-**List Nodes** - Get all registered nodes
-
-```bash
-GET /api/v1/nodes
-
-curl http://localhost:8080/api/v1/nodes
-```
-
-#### Worker Endpoints
-
-**Execute Task** - Execute a task on worker (called by master)
-
-```bash
-POST /api/v1/tasks/:id/execute
-Content-Type: application/json
-
-{
-  "task": {
-    "taskId": "task-id",
-    "name": "my-task",
-    "image": "nginx:latest",
-    "env": {"PORT": "8080"}
-  }
-}
-```
-
-**Get Task Status** - Get task execution status
-
-```bash
-GET /api/v1/tasks/:id/status
-
-curl http://localhost:8081/api/v1/tasks/task-id/status
-```
-
-**Get Task Logs** - Stream container logs
-
-```bash
-GET /api/v1/tasks/:id/logs?tail=100
-
-curl http://localhost:8081/api/v1/tasks/task-id/logs?tail=100
-```
-
-### Task Status Flow
-
-Tasks progress through the following states:
-
-```
-pending → scheduled → running → completed/failed
-```
-
-- **pending**: Task created, awaiting scheduling
-- **scheduled**: Task assigned to a worker node
-- **running**: Task is executing on a worker
-- **completed**: Task finished successfully
-- **failed**: Task execution failed
-
-### Pod API Endpoints
-
-Podling supports Kubernetes-style pods - groups of one or more containers with shared lifecycle:
-
-**Create Pod** - Create a multi-container pod
-
-```bash
-POST /api/v1/pods
-Content-Type: application/json
-
-{
-  "name": "my-web-app",
-  "namespace": "production",
-  "labels": {
-    "app": "web",
-    "version": "1.0"
-  },
-  "containers": [
-    {
-      "name": "app",
-      "image": "myapp:1.0",
-      "env": {"PORT": "8080"}
-    },
-    {
-      "name": "sidecar",
-      "image": "nginx:latest"
-    }
-  ]
-}
-
-# Example
-curl -X POST http://localhost:8080/api/v1/pods \
-  -H "Content-Type: application/json" \
-  -d '{"name":"web-pod","containers":[{"name":"nginx","image":"nginx:latest"}]}'
-```
-
-**List Pods** - Get all pods
-
-```bash
-GET /api/v1/pods
-
-curl http://localhost:8080/api/v1/pods
-```
-
-**Get Pod** - Get specific pod with container status
-
-```bash
-GET /api/v1/pods/{podId}
-
-curl http://localhost:8080/api/v1/pods/20250119123456-pod123
-```
-
-**Delete Pod** - Delete a pod
-
-```bash
-DELETE /api/v1/pods/{podId}
-
-curl -X DELETE http://localhost:8080/api/v1/pods/20250119123456-pod123
-```
-
-### Pod Status Flow
-
-Pods progress through similar states:
-
-```
-pending → scheduled → running → succeeded/failed
-```
-
-- **pending**: Pod created, awaiting scheduling
-- **scheduled**: Pod assigned to a worker node
-- **running**: All containers in pod are running
-- **succeeded**: All containers exited with code 0
-- **failed**: One or more containers failed
-
-## Web Dashboard
-
-The web dashboard provides a modern UI for monitoring and managing your Podling cluster.
-
-### Running the Dashboard
-
-```bash
-# Install dependencies (first time only)
-cd web
-npm install
-
-# Start development server
-npm run dev
-```
-
-The dashboard will be available at `http://localhost:5173` and connects to the master API at `http://localhost:8070`.
-
-### Features
-
-- **Overview**: Cluster statistics with node, pod, task, and service counts
-- **Nodes**: View worker nodes with resource usage (CPU/Memory)
-- **Pods**: List and inspect multi-container pods
-- **Tasks**: Monitor single-container task execution
-- **Services**: View service discovery and endpoints
-- **Auto-refresh**: Data updates every 5 seconds
-
-### Building for Production
-
-```bash
-cd web
-npm run build
-```
-
-The built files will be in `web/dist/` and can be served by any static file server.
-
-## CLI Usage
-
-The `podling` CLI provides a user-friendly interface to interact with the Podling orchestrator.
-
-### Installation
-
-```bash
-# Build the CLI
-make build
-
-# The binary will be at bin/podling
-# Optionally, add it to your PATH
-cp bin/podling /usr/local/bin/
-```
-
-### Configuration
-
-The CLI can be configured via:
-
-1. **Command-line flags**: `--master http://localhost:8070`
-2. **Environment variables**: `PODLING_MASTER_URL=http://localhost:8070`
-3. **Config file**: `~/.podling.yaml` (future enhancement)
-
-### Commands
-
-#### Task Commands (Single Container)
-
-Submit a new task to run a single container:
-
-```bash
-# Basic usage
-podling run my-nginx --image nginx:latest
-
-# With environment variables
-podling run my-redis --image redis:latest --env PORT=6379 --env MODE=standalone
-
-# With custom master URL
-podling --master http://production:8080 run my-task --image alpine:latest
-```
-
-View tasks:
-
-```bash
-# List all tasks
-podling ps
-
-# Get detailed info for a specific task
-podling ps --task <task-id>
-podling ps -t <task-id>
-```
-
-View task logs:
-
-```bash
-# Get logs (last 100 lines by default)
-podling logs <task-id>
-
-# Limit output
-podling logs <task-id> --tail 50
-```
-
-#### Pod Commands (Multi-Container)
-
-Create and manage multi-container pods:
-
-```bash
-# Create a pod with a single container
-podling pod create my-web --container nginx:nginx:latest
-
-# Create a pod with multiple containers
-podling pod create my-app \
-  --container app:myapp:1.0:PORT=8080,ENV=prod \
-  --container sidecar:nginx:latest \
-  --namespace production \
-  --label app=myapp \
-  --label version=1.0
-
-# List all pods
-podling pod list
-
-# Get detailed pod information (shows all container statuses)
-podling pod get <pod-id>
-
-# Delete a pod
-podling pod delete <pod-id>
-```
-
-**Container Specification Format:**
-
-```
-name:image[:env1=val1,env2=val2]
-```
-
-Examples:
-
-- `nginx:nginx:latest` - Simple container
-- `app:myapp:1.0:PORT=8080,DB=postgres` - With environment variables
-
-#### Node Commands
-
-View all registered worker nodes:
-
-```bash
-# List all nodes
-podling nodes
-
-# With verbose output
-podling nodes --verbose
-```
-
-Output example:
-
-```
-ID          HOSTNAME    PORT   STATUS   CAPACITY   TASKS   LAST HEARTBEAT
-worker-1    localhost   8081   online   10         2       30s ago
-worker-2    localhost   8082   online   10         1       25s ago
-```
-
-### Global Flags
-
-All commands support these global flags:
-
-- `--master string`: Master API URL (default "http://localhost:8080")
-- `--verbose, -v`: Enable verbose output
-- `--config string`: Config file location (default "$HOME/.podling.yaml")
-- `--help, -h`: Show help for any command
-
-## Testing
-
-```bash
-# Run all tests
-make test
-
-# Run with coverage report (generates coverage.html)
-make test-coverage
-
-# Run with race detector
-make test-race
-
-# Or use go directly
-go test ./...
-go test -race ./...
-go test -coverprofile=coverage.out ./...
-```
-
-**Current Test Coverage**:
-
-- State management: 94.7%
-- API handlers: 91.9%
-- Scheduler: 100%
-- Worker agent: 86.2%
-- Docker client: 73.6%
-- Overall: >85%
-
-## Code Quality
-
-```bash
-# Format code
-make fmt
-
-# Run linter (requires golangci-lint)
-make lint
-```
-
-## Building
-
-```bash
-# Build all binaries
-make build
-
-# Binaries will be in bin/
-# - bin/podling-master
-# - bin/podling-worker
-# - bin/podling
+make dev          # Run with hot reload
+make test         # Run tests
+make test-coverage # Generate coverage report
+make lint         # Run linter
+make build        # Build all binaries
 ```
 
 ## License
@@ -646,6 +110,4 @@ See [LICENSE](LICENSE) file for details.
 ## Acknowledgments
 
 - Inspired by [Kubernetes](https://kubernetes.io/)
-- Project structure follows [golang-standards/project-layout](https://github.com/golang-standards/project-layout)
-- Built with [Echo](https://echo.labstack.com/) framework
-- Development powered by [Air](https://github.com/air-verse/air)
+- Built with [Echo](https://echo.labstack.com/), [React](https://react.dev/), [shadcn/ui](https://ui.shadcn.com/)
