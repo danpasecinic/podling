@@ -97,12 +97,12 @@ Updated pod execution flow:
 
 ```go
 type PodExecution struct {
-pod            *types.Pod
-networkID      string // NEW: Pod's network ID
-containerIDs   map[string]string
-healthCheckers map[string]*health.Checker
-mu             sync.RWMutex
-cancelFunc     context.CancelFunc
+    pod            *types.Pod
+    networkID      string
+    containerIDs   map[string]string
+    healthCheckers map[string]*health.Checker
+    mu             sync.RWMutex
+    cancelFunc     context.CancelFunc
 }
 ```
 
@@ -253,28 +253,24 @@ docker inspect pod-<pod-id> | jq '.[0].Containers'
 
 ### Current Limitations
 
-1. **No DNS**: Containers can't resolve each other by name within the pod
-    - Workaround: Use `localhost` or pod IP
-
-2. **No Volume Sharing**: Containers can't share filesystems
+1. **No Volume Sharing**: Containers can't share filesystems
     - Future: Implement `emptyDir` volumes
 
-3. **No Init Containers**: Can't run setup containers before main containers
+2. **No Init Containers**: Can't run setup containers before main containers
     - Future: Add init container support
 
-4. **Network Policies**: No traffic filtering between pods
+3. **Network Policies**: No traffic filtering between pods
     - Future: Implement NetworkPolicy resource
 
-5. **Service Mesh**: No automatic sidecar injection or mTLS
+4. **Service Mesh**: No automatic sidecar injection or mTLS
     - Future: Pluggable sidecar injection
 
 ### Future Enhancements
 
 1. **CNI Plugin Support**: Use standard Kubernetes CNI plugins
-2. **Custom DNS**: CoreDNS integration for pod-to-pod DNS
-3. **Network Policies**: iptables-based traffic filtering
-4. **IPv6 Support**: Dual-stack networking
-5. **HostNetwork Mode**: Allow pods to use host network namespace
+2. **Network Policies**: iptables-based traffic filtering
+3. **IPv6 Support**: Dual-stack networking
+4. **HostNetwork Mode**: Allow pods to use host network namespace
 
 ## Technical Notes
 
@@ -309,7 +305,7 @@ Networks are named `pod-<pod-id>` for:
 | Single pod IP            | ✅          | ✅       | **Implemented** |
 | Localhost communication  | ✅          | ✅       | **Implemented** |
 | Pod-to-pod routing       | ✅          | ✅       | **Implemented** |
-| DNS resolution           | ✅          | ❌       | Planned         |
+| DNS resolution           | ✅          | ✅       | **Implemented** |
 | Network policies         | ✅          | ❌       | Planned         |
 | Service mesh             | ✅          | ❌       | Future          |
 | CNI plugins              | ✅          | ❌       | Future          |

@@ -74,12 +74,9 @@ The database schema will be automatically created on first startup.
 2. **Create database and user:**
 
 ```sql
-CREATE
-DATABASE podling;
-CREATE
-USER podling WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE
-podling TO podling;
+CREATE DATABASE podling;
+CREATE USER podling WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE podling TO podling;
 ```
 
 3. **Configure connection:**
@@ -263,7 +260,7 @@ Currently, there's no built-in migration tool between storage backends.
 1. Export tasks via API:
 
 ```bash
-curl http://localhost:8080/api/v1/tasks > tasks.json
+curl http://localhost:8070/api/v1/tasks > tasks.json
 ```
 
 2. Stop master, configure PostgreSQL, restart

@@ -32,11 +32,11 @@ ensure that user-controlled data cannot be used to make unauthorized network req
 
 ```go
 if req.Task.LivenessProbe != nil {
-if err := validateHealthCheck(req.Task.LivenessProbe); err != nil {
-return c.JSON(http.StatusBadRequest, map[string]string{
-"error": fmt.Sprintf("invalid liveness probe: %v", err),
-})
-}
+    if err := validateHealthCheck(req.Task.LivenessProbe); err != nil {
+        return c.JSON(http.StatusBadRequest, map[string]string{
+            "error": fmt.Sprintf("invalid liveness probe: %v", err),
+        })
+    }
 }
 ```
 
@@ -66,10 +66,9 @@ return c.JSON(http.StatusBadRequest, map[string]string{
 **Example**:
 
 ```go
-// Validate containerIP to prevent SSRF attacks
 if err := validateContainerIP(containerIP); err != nil {
-result.Message = fmt.Sprintf("invalid container IP: %v", err)
-return result
+    result.Message = fmt.Sprintf("invalid container IP: %v", err)
+    return result
 }
 ```
 
@@ -92,10 +91,9 @@ return result
 **Example**:
 
 ```go
-// Validate HTTP path to prevent path traversal and injection attacks
 if err := validateHTTPPath(check.HTTPPath); err != nil {
-result.Message = fmt.Sprintf("invalid HTTP path: %v", err)
-return result
+    result.Message = fmt.Sprintf("invalid HTTP path: %v", err)
+    return result
 }
 ```
 
@@ -116,13 +114,13 @@ return result
 ```go
 parsedURL, err := url.Parse(probeURL)
 if err != nil {
-result.Message = fmt.Sprintf("failed to parse URL: %v", err)
-return result
+    result.Message = fmt.Sprintf("failed to parse URL: %v", err)
+    return result
 }
 
 if parsedURL.Scheme != "http" {
-result.Message = "only HTTP scheme is allowed for health checks"
-return result
+    result.Message = "only HTTP scheme is allowed for health checks"
+    return result
 }
 ```
 
@@ -314,39 +312,35 @@ When adding new network-related features:
 ```go
 // 1. Validate in handler
 func validateHealthCheck(check *types.HealthCheck) error {
-if check.Type == types.ProbeTypeNew {
-// Validate type-specific fields
-if check.NewField == "" {
-return fmt.Errorf("newField is required")
-}
-// Reject dangerous patterns
-if strings.Contains(check.NewField, "..") {
-return fmt.Errorf("invalid newField")
-}
-}
-return nil
+    if check.Type == types.ProbeTypeNew {
+        if check.NewField == "" {
+            return fmt.Errorf("newField is required")
+        }
+        if strings.Contains(check.NewField, "..") {
+            return fmt.Errorf("invalid newField")
+        }
+    }
+    return nil
 }
 
 // 2. Validate in probe implementation
 func (p *NewProbe) Check(...) {
-// Additional validation
-if err := validateNewField(check.NewField); err != nil {
-return errorResult(err)
-}
-// Safe to use check.NewField
+    if err := validateNewField(check.NewField); err != nil {
+        return errorResult(err)
+    }
 }
 
 // 3. Add tests
 func TestValidateNewField(t *testing.T) {
-tests := []struct{
-name string
-field string
-wantErr bool
-}{
-{"valid", "safe-value", false},
-{"malicious", "../../../evil", true},
-}
-// ...
+    tests := []struct {
+        name    string
+        field   string
+        wantErr bool
+    }{
+        {"valid", "safe-value", false},
+        {"malicious", "../../../evil", true},
+    }
+    // ...
 }
 ```
 
