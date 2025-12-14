@@ -14,13 +14,19 @@ import (
 )
 
 type Client struct {
-	cli *client.Client
+	cli       *client.Client
+	dnsConfig *DNSConfig
 }
 
 type PortMapping struct {
 	ContainerPort int
 	HostPort      int
 	Protocol      string
+}
+
+type DNSConfig struct {
+	Servers []string
+	Search  []string
 }
 
 func NewClient() (*Client, error) {
@@ -36,6 +42,14 @@ func (c *Client) Close() error {
 		return c.cli.Close()
 	}
 	return nil
+}
+
+func (c *Client) SetDNSConfig(config *DNSConfig) {
+	c.dnsConfig = config
+}
+
+func (c *Client) GetDNSConfig() *DNSConfig {
+	return c.dnsConfig
 }
 
 func (c *Client) PullImage(ctx context.Context, imageName string) error {
@@ -351,13 +365,15 @@ func (c *Client) CreateContainerInNetwork(
 		},
 	}
 
+	hostConfig := c.buildHostConfigWithDNS(nil)
+
 	networkingConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			networkID: {},
 		},
 	}
 
-	resp, err := c.cli.ContainerCreate(ctx, config, nil, networkingConfig, nil, "")
+	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, networkingConfig, nil, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
@@ -376,7 +392,7 @@ func (c *Client) CreateContainerInNetworkWithResources(
 		},
 	}
 
-	hostConfig := &container.HostConfig{}
+	hostConfig := c.buildHostConfigWithDNS(&container.HostConfig{})
 
 	if cpuQuota > 0 {
 		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)
@@ -433,9 +449,11 @@ func (c *Client) CreateContainerInNetworkWithResourcesAndPorts(
 		},
 	}
 
-	hostConfig := &container.HostConfig{
-		PortBindings: portBindings,
-	}
+	hostConfig := c.buildHostConfigWithDNS(
+		&container.HostConfig{
+			PortBindings: portBindings,
+		},
+	)
 
 	if cpuQuota > 0 {
 		hostConfig.NanoCPUs = int64(cpuQuota * 1e9)
@@ -457,4 +475,21 @@ func (c *Client) CreateContainerInNetworkWithResourcesAndPorts(
 	}
 
 	return resp.ID, nil
+}
+
+func (c *Client) buildHostConfigWithDNS(base *container.HostConfig) *container.HostConfig {
+	if base == nil {
+		base = &container.HostConfig{}
+	}
+
+	if c.dnsConfig != nil {
+		if len(c.dnsConfig.Servers) > 0 {
+			base.DNS = c.dnsConfig.Servers
+		}
+		if len(c.dnsConfig.Search) > 0 {
+			base.DNSSearch = c.dnsConfig.Search
+		}
+	}
+
+	return base
 }
