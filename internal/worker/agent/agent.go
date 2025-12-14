@@ -53,6 +53,18 @@ func (a *Agent) SetAPIKey(apiKey string) {
 	a.apiKey = apiKey
 }
 
+func (a *Agent) SetDNSConfig(servers []string, searchDomains []string) {
+	if len(servers) > 0 || len(searchDomains) > 0 {
+		a.dockerClient.SetDNSConfig(
+			&docker.DNSConfig{
+				Servers: servers,
+				Search:  searchDomains,
+			},
+		)
+		log.Printf("DNS configured: servers=%v, search=%v", servers, searchDomains)
+	}
+}
+
 func (a *Agent) addAuthHeader(req *http.Request) {
 	if a.apiKey != "" {
 		req.Header.Set("X-API-Key", a.apiKey)

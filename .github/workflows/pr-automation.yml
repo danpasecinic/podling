@@ -2,7 +2,7 @@ name: PR Automation
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [ opened, synchronize, reopened ]
 
 permissions:
   contents: read
@@ -41,38 +41,3 @@ jobs:
           xl_label: 'size/xl'
           fail_if_xl: false
           message_if_xl: 'This PR is very large. Consider breaking it into smaller PRs.'
-
-  pr-checklist:
-    name: PR Checklist Comment
-    runs-on: ubuntu-latest
-    if: github.event.action == 'opened'
-    steps:
-      - name: Comment checklist
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const body = `## PR Checklist
-
-            Thanks for contributing to Podling! Please ensure:
-
-            - [ ] Tests pass locally (\`make test\`)
-            - [ ] Code is formatted (\`make fmt\`)
-            - [ ] Linter passes (\`make lint\`)
-            - [ ] Tests added for new features
-            - [ ] Documentation updated (if needed)
-            - [ ] No security vulnerabilities introduced
-            - [ ] Commit messages follow convention
-
-            ### Additional Notes
-
-            - Coverage should be above 60% for internal packages
-            - PR will be automatically labeled based on size and changed files
-            - Security scans will run automatically
-            `;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
