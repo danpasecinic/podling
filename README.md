@@ -127,8 +127,9 @@ podling/
 
 | Component      | Responsibility                                    | Port  |
 |----------------|---------------------------------------------------|-------|
-| **Master**     | Task scheduling, API server, state management     | 8080  |
+| **Master**     | Task scheduling, API server, state management     | 8070  |
 | **Worker**     | Container execution, status reporting, heartbeats | 8081+ |
+| **DNS Server** | Service discovery DNS resolution                  | 5353  |
 | **CLI**        | User interface for task submission and monitoring | -     |
 | **Dashboard**  | Web UI for monitoring and management              | 5173  |
 
@@ -163,7 +164,7 @@ go build -o bin/podling-master ./cmd/master
 make build && ./bin/podling-master
 ```
 
-The master will start on `http://localhost:8080` with the following endpoints:
+The master will start on `http://localhost:8070` with the following endpoints:
 
 ### Testing with Postman
 
@@ -190,7 +191,8 @@ make build && ./bin/podling-worker -node-id=worker-1
 # -node-id: Unique worker identifier (required)
 # -hostname: Worker hostname (default: localhost)
 # -port: Worker port (default: 8081)
-# -master-url: Master API URL (default: http://localhost:8080)
+# -master-url: Master API URL (default: http://localhost:8070)
+# -dns-server: DNS server for container resolution (e.g., 192.168.1.1:5353)
 # -heartbeat-interval: Heartbeat interval (default: 30s)
 # -shutdown-timeout: Graceful shutdown timeout (default: 30s)
 ```
@@ -441,7 +443,7 @@ npm install
 npm run dev
 ```
 
-The dashboard will be available at `http://localhost:5173` and connects to the master API at `http://localhost:8080`.
+The dashboard will be available at `http://localhost:5173` and connects to the master API at `http://localhost:8070`.
 
 ### Features
 
@@ -480,8 +482,8 @@ cp bin/podling /usr/local/bin/
 
 The CLI can be configured via:
 
-1. **Command-line flags**: `--master http://localhost:8080`
-2. **Environment variables**: `PODLING_MASTER_URL=http://localhost:8080`
+1. **Command-line flags**: `--master http://localhost:8070`
+2. **Environment variables**: `PODLING_MASTER_URL=http://localhost:8070`
 3. **Config file**: `~/.podling.yaml` (future enhancement)
 
 ### Commands

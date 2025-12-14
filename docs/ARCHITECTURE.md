@@ -8,7 +8,7 @@ graph TB
         CLI[CLI Tool<br/>podling]
     end
 
-    subgraph "Control Plane - Master :8080"
+    subgraph "Control Plane - Master :8070"
         API[REST API<br/>Echo Framework]
         Scheduler[Scheduler<br/>Task Assignment]
         State[State Manager<br/>Thread-Safe Store]
@@ -341,7 +341,7 @@ classDiagram
 
 ```mermaid
 graph LR
-    subgraph "Master API :8080"
+    subgraph "Master API :8070"
         direction TB
         T[Tasks]
         T1[POST /api/v1/tasks<br/>Create Task]
@@ -522,7 +522,7 @@ stateDiagram-v2
 ```mermaid
 graph TB
     subgraph "Development (localhost)"
-        DevMaster[Master :8080]
+        DevMaster[Master :8070]
         DevWorker1[Worker :8081]
         DevWorker2[Worker :8082]
         DevDocker[Docker Desktop]
@@ -532,7 +532,7 @@ graph TB
     end
 
     subgraph "Production (distributed)"
-        ProdMaster[Master :8080<br/>control-plane.internal]
+        ProdMaster[Master :8070<br/>control-plane.internal]
         
         subgraph "Worker Pool"
             ProdW1[Worker :8081<br/>worker-1.internal]
