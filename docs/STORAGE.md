@@ -263,7 +263,7 @@ Currently, there's no built-in migration tool between storage backends.
 1. Export tasks via API:
 
 ```bash
-curl http://localhost:8080/api/v1/tasks > tasks.json
+curl http://localhost:8070/api/v1/tasks > tasks.json
 ```
 
 2. Stop master, configure PostgreSQL, restart
