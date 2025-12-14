@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
+import { CreateTaskDialog } from '@/components/forms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTasks, useTableSort } from '@/hooks'
-import { StatusBadge, HealthBadge, TimestampDisplay, SortableHeader } from '@/components/shared'
+import { useTableSort, useTasks } from '@/hooks'
+import { HealthBadge, SortableHeader, StatusBadge, TimestampDisplay } from '@/components/shared'
 import type { Task } from '@/api/types'
 
 export function Tasks() {
@@ -16,8 +17,9 @@ export function Tasks() {
       <Header title="Tasks" />
       <main className="flex-1 p-6">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Tasks</CardTitle>
+            <CreateTaskDialog />
           </CardHeader>
           <CardContent>
             {isLoading ? (
