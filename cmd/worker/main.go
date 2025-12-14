@@ -25,6 +25,7 @@ func main() {
 	apiKey := flag.String("api-key", "", "API key for authentication with master")
 	heartbeatInterval := flag.Duration("heartbeat-interval", 30*time.Second, "Heartbeat interval")
 	shutdownTimeout := flag.Duration("shutdown-timeout", 30*time.Second, "Graceful shutdown timeout")
+	dnsServer := flag.String("dns-server", "", "DNS server address for containers (e.g., 192.168.1.1:5353)")
 
 	flag.Parse()
 	if *nodeID == "" {
@@ -44,6 +45,16 @@ func main() {
 	if *apiKey != "" {
 		workerAgent.SetAPIKey(*apiKey)
 		log.Println("using API key for authentication")
+	}
+
+	if *dnsServer == "" {
+		*dnsServer = os.Getenv("PODLING_DNS_SERVER")
+	}
+	if *dnsServer != "" {
+		workerAgent.SetDNSConfig(
+			[]string{*dnsServer},
+			[]string{"default.svc.cluster.local", "svc.cluster.local", "cluster.local"},
+		)
 	}
 
 	log.Printf("registering worker with master at %s", *masterURL)
