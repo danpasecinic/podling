@@ -13,6 +13,7 @@ import (
 
 	"github.com/danpasecinic/podling/internal/auth"
 	"github.com/danpasecinic/podling/internal/master/api"
+	"github.com/danpasecinic/podling/internal/master/dns"
 	"github.com/danpasecinic/podling/internal/master/scheduler"
 	"github.com/danpasecinic/podling/internal/master/services"
 	"github.com/danpasecinic/podling/internal/master/state"
@@ -42,6 +43,14 @@ func main() {
 	go func() {
 		if err := endpointController.Start(ctx); err != nil {
 			log.Printf("endpoint controller error: %v", err)
+		}
+	}()
+
+	dnsConfig := initDNS()
+	dnsServer := dns.NewServer(store, dnsConfig)
+	go func() {
+		if err := dnsServer.Start(ctx); err != nil {
+			log.Printf("DNS server error: %v", err)
 		}
 	}()
 
@@ -166,4 +175,24 @@ func initAuth(pgStore *state.PostgresStateStore) (auth.Config, auth.AuthStore) {
 	authStore := auth.NewPostgresAuthStore(pgStore.DB())
 
 	return config, authStore
+}
+
+func initDNS() dns.Config {
+	config := dns.DefaultConfig()
+
+	if enabled := os.Getenv("DNS_ENABLED"); enabled == "false" {
+		config.Enabled = false
+	}
+
+	if port := os.Getenv("DNS_PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			config.Port = p
+		}
+	}
+
+	if domain := os.Getenv("DNS_CLUSTER_DOMAIN"); domain != "" {
+		config.ClusterDomain = domain
+	}
+
+	return config
 }
