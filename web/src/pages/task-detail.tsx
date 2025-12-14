@@ -1,16 +1,27 @@
-import { useParams, Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Header } from '@/components/layout'
+import { DeleteConfirmationDialog } from '@/components/forms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { useTask } from '@/hooks'
-import { StatusBadge, HealthBadge, TimestampDisplay } from '@/components/shared'
-import { ArrowLeft } from 'lucide-react'
+import { useDeleteTask, useTask } from '@/hooks'
+import { HealthBadge, StatusBadge, TimestampDisplay } from '@/components/shared'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 
 export function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>()
+  const navigate = useNavigate()
   const { data: task, isLoading } = useTask(taskId || '')
+  const deleteTask = useDeleteTask()
+
+  const handleDelete = () => {
+    if (taskId) {
+      deleteTask.mutate(taskId, {
+        onSuccess: () => navigate('/tasks'),
+      })
+    }
+  }
 
   if (isLoading) {
     return (
@@ -48,12 +59,26 @@ export function TaskDetail() {
     <>
       <Header title={`Task: ${task.name}`} />
       <main className="flex-1 p-6">
-        <Button asChild variant="ghost" className="mb-4">
-          <Link to="/tasks">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Tasks
-          </Link>
-        </Button>
+        <div className="flex items-center justify-between mb-4">
+          <Button asChild variant="ghost">
+            <Link to="/tasks">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Tasks
+            </Link>
+          </Button>
+          <DeleteConfirmationDialog
+            title="Delete Task"
+            description={`Are you sure you want to delete task "${task.name}"? This action cannot be undone.`}
+            onConfirm={handleDelete}
+            isPending={deleteTask.isPending}
+            trigger={
+              <Button variant="destructive" size="sm">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Task
+              </Button>
+            }
+          />
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card>

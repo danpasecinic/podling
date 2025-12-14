@@ -1,18 +1,29 @@
-import { useParams, Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Header } from '@/components/layout'
+import { DeleteConfirmationDialog } from '@/components/forms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { useService, useEndpoints } from '@/hooks'
+import { useDeleteService, useEndpoints, useService } from '@/hooks'
 import { LabelBadges, TimestampDisplay } from '@/components/shared'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 
 export function ServiceDetail() {
   const { serviceId } = useParams<{ serviceId: string }>()
+  const navigate = useNavigate()
   const { data: service, isLoading } = useService(serviceId || '')
   const { data: endpoints } = useEndpoints(serviceId || '')
+  const deleteService = useDeleteService()
+
+  const handleDelete = () => {
+    if (serviceId) {
+      deleteService.mutate(serviceId, {
+        onSuccess: () => navigate('/services'),
+      })
+    }
+  }
 
   if (isLoading) {
     return (
@@ -53,12 +64,26 @@ export function ServiceDetail() {
     <>
       <Header title={`Service: ${service.name}`} />
       <main className="flex-1 p-6">
-        <Button asChild variant="ghost" className="mb-4">
-          <Link to="/services">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Services
-          </Link>
-        </Button>
+        <div className="flex items-center justify-between mb-4">
+          <Button asChild variant="ghost">
+            <Link to="/services">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Services
+            </Link>
+          </Button>
+          <DeleteConfirmationDialog
+            title="Delete Service"
+            description={`Are you sure you want to delete service "${service.name}"? This action cannot be undone.`}
+            onConfirm={handleDelete}
+            isPending={deleteService.isPending}
+            trigger={
+              <Button variant="destructive" size="sm">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Service
+              </Button>
+            }
+          />
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card>

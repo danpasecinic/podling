@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
+import { CreatePodDialog } from '@/components/forms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePods, useTableSort } from '@/hooks'
-import { StatusBadge, LabelBadges, TimestampDisplay, SortableHeader } from '@/components/shared'
+import { LabelBadges, SortableHeader, StatusBadge, TimestampDisplay } from '@/components/shared'
 import type { Pod } from '@/api/types'
 
 export function Pods() {
@@ -16,8 +17,9 @@ export function Pods() {
       <Header title="Pods" />
       <main className="flex-1 p-6">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Pods</CardTitle>
+            <CreatePodDialog />
           </CardHeader>
           <CardContent>
             {isLoading ? (
