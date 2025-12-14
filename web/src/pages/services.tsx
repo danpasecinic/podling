@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
+import { CreateServiceDialog } from '@/components/forms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { useServices, useTableSort } from '@/hooks'
-import { LabelBadges, TimestampDisplay, SortableHeader } from '@/components/shared'
+import { LabelBadges, SortableHeader, TimestampDisplay } from '@/components/shared'
 import type { Service } from '@/api/types'
 
 export function Services() {
@@ -17,8 +18,9 @@ export function Services() {
       <Header title="Services" />
       <main className="flex-1 p-6">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Services</CardTitle>
+            <CreateServiceDialog />
           </CardHeader>
           <CardContent>
             {isLoading ? (

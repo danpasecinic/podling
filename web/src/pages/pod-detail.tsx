@@ -1,16 +1,27 @@
-import { useParams, Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Header } from '@/components/layout'
+import { DeleteConfirmationDialog } from '@/components/forms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { usePod } from '@/hooks'
-import { StatusBadge, HealthBadge, LabelBadges, TimestampDisplay } from '@/components/shared'
-import { ArrowLeft } from 'lucide-react'
+import { useDeletePod, usePod } from '@/hooks'
+import { HealthBadge, LabelBadges, StatusBadge, TimestampDisplay } from '@/components/shared'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 
 export function PodDetail() {
   const { podId } = useParams<{ podId: string }>()
+  const navigate = useNavigate()
   const { data: pod, isLoading } = usePod(podId || '')
+  const deletePod = useDeletePod()
+
+  const handleDelete = () => {
+    if (podId) {
+      deletePod.mutate(podId, {
+        onSuccess: () => navigate('/pods'),
+      })
+    }
+  }
 
   if (isLoading) {
     return (
@@ -48,12 +59,26 @@ export function PodDetail() {
     <>
       <Header title={`Pod: ${pod.name}`} />
       <main className="flex-1 p-6">
-        <Button asChild variant="ghost" className="mb-4">
-          <Link to="/pods">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Pods
-          </Link>
-        </Button>
+        <div className="flex items-center justify-between mb-4">
+          <Button asChild variant="ghost">
+            <Link to="/pods">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Pods
+            </Link>
+          </Button>
+          <DeleteConfirmationDialog
+            title="Delete Pod"
+            description={`Are you sure you want to delete pod "${pod.name}"? This action cannot be undone.`}
+            onConfirm={handleDelete}
+            isPending={deletePod.isPending}
+            trigger={
+              <Button variant="destructive" size="sm">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Pod
+              </Button>
+            }
+          />
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
