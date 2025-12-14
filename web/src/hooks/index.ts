@@ -1,4 +1,5 @@
 export * from './queries'
+export * from './mutations'
 export { useIsMobile } from './use-mobile'
 export { useAuth, AuthProvider } from './use-auth'
 export { useTableSort } from './use-table-sort'
