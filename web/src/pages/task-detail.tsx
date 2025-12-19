@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { useDeleteTask, useTask } from '@/hooks'
 import { HealthBadge, StatusBadge, TimestampDisplay } from '@/components/shared'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2, ScrollText } from 'lucide-react'
 
 export function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>()
@@ -66,18 +66,26 @@ export function TaskDetail() {
               Back to Tasks
             </Link>
           </Button>
-          <DeleteConfirmationDialog
-            title="Delete Task"
-            description={`Are you sure you want to delete task "${task.name}"? This action cannot be undone.`}
-            onConfirm={handleDelete}
-            isPending={deleteTask.isPending}
-            trigger={
-              <Button variant="destructive" size="sm">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Task
-              </Button>
-            }
-          />
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/tasks/${taskId}/logs`}>
+                <ScrollText className="mr-2 h-4 w-4" />
+                View Logs
+              </Link>
+            </Button>
+            <DeleteConfirmationDialog
+              title="Delete Task"
+              description={`Are you sure you want to delete task "${task.name}"? This action cannot be undone.`}
+              onConfirm={handleDelete}
+              isPending={deleteTask.isPending}
+              trigger={
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Task
+                </Button>
+              }
+            />
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">

@@ -418,6 +418,43 @@ func (a *Agent) GetPodLogs(ctx context.Context, podID string, containerName stri
 	return logs, nil
 }
 
+func (a *Agent) StreamPodLogs(ctx context.Context, podID string, containerName string, tail int) (LogStream, error) {
+	a.mu.RLock()
+	podExec, ok := a.runningPods[podID]
+	a.mu.RUnlock()
+
+	if !ok {
+		return LogStream{}, fmt.Errorf("pod %s not found or not running", podID)
+	}
+
+	podExec.mu.RLock()
+	containerIDs := make(map[string]string)
+	for name, id := range podExec.containerIDs {
+		containerIDs[name] = id
+	}
+	podExec.mu.RUnlock()
+
+	targetContainer := containerName
+	if targetContainer == "" {
+		for name := range containerIDs {
+			targetContainer = name
+			break
+		}
+	}
+
+	containerID, ok := containerIDs[targetContainer]
+	if !ok {
+		return LogStream{}, fmt.Errorf("container %s not found in pod %s", targetContainer, podID)
+	}
+
+	reader, err := a.dockerClient.StreamContainerLogs(ctx, containerID, tail)
+	if err != nil {
+		return LogStream{}, err
+	}
+
+	return LogStream{Reader: reader, ContainerID: containerID}, nil
+}
+
 func (a *Agent) CleanupPod(ctx context.Context, podID string) error {
 	a.mu.RLock()
 	podExec, ok := a.runningPods[podID]

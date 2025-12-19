@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDeletePod, usePod } from '@/hooks'
 import { HealthBadge, LabelBadges, StatusBadge, TimestampDisplay } from '@/components/shared'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, ScrollText, Trash2 } from 'lucide-react'
 
 export function PodDetail() {
   const { podId } = useParams<{ podId: string }>()
@@ -66,18 +66,26 @@ export function PodDetail() {
               Back to Pods
             </Link>
           </Button>
-          <DeleteConfirmationDialog
-            title="Delete Pod"
-            description={`Are you sure you want to delete pod "${pod.name}"? This action cannot be undone.`}
-            onConfirm={handleDelete}
-            isPending={deletePod.isPending}
-            trigger={
-              <Button variant="destructive" size="sm">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Pod
-              </Button>
-            }
-          />
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/pods/${podId}/logs`}>
+                <ScrollText className="mr-2 h-4 w-4" />
+                View Logs
+              </Link>
+            </Button>
+            <DeleteConfirmationDialog
+              title="Delete Pod"
+              description={`Are you sure you want to delete pod "${pod.name}"? This action cannot be undone.`}
+              onConfirm={handleDelete}
+              isPending={deletePod.isPending}
+              trigger={
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Pod
+                </Button>
+              }
+            />
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">

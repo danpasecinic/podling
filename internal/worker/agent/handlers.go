@@ -1,9 +1,11 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/danpasecinic/podling/internal/types"
@@ -257,4 +259,105 @@ func (s *Server) DeletePod(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "pod cleaned up successfully"})
+}
+
+func (s *Server) StreamTaskLogs(c echo.Context) error {
+	taskID := c.Param("id")
+	tail := 100
+	if tailParam := c.QueryParam("tail"); tailParam != "" {
+		if _, err := fmt.Sscanf(tailParam, "%d", &tail); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid tail parameter"})
+		}
+	}
+
+	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Cache-Control", "no-cache")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().Header().Set("Access-Control-Allow-Origin", "*")
+	c.Response().WriteHeader(http.StatusOK)
+
+	stream, err := s.agent.StreamTaskLogs(c.Request().Context(), taskID, tail)
+	if err != nil {
+		_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+		c.Response().Flush()
+		return nil
+	}
+	defer func() { _ = stream.Reader.Close() }()
+
+	scanner := bufio.NewScanner(stream.Reader)
+	for scanner.Scan() {
+		select {
+		case <-c.Request().Context().Done():
+			return nil
+		default:
+			line := scanner.Text()
+			line = stripDockerLogHeader(line)
+			_, _ = fmt.Fprintf(c.Response(), "data: %s\n\n", line)
+			c.Response().Flush()
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+		c.Response().Flush()
+	}
+
+	return nil
+}
+
+func (s *Server) StreamPodLogs(c echo.Context) error {
+	podID := c.Param("id")
+	containerName := c.QueryParam("container")
+	tail := 100
+
+	if tailParam := c.QueryParam("tail"); tailParam != "" {
+		if n, err := fmt.Sscanf(tailParam, "%d", &tail); err != nil || n != 1 {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid tail parameter"})
+		}
+	}
+
+	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Cache-Control", "no-cache")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().Header().Set("Access-Control-Allow-Origin", "*")
+	c.Response().WriteHeader(http.StatusOK)
+
+	stream, err := s.agent.StreamPodLogs(c.Request().Context(), podID, containerName, tail)
+	if err != nil {
+		_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+		c.Response().Flush()
+		return nil
+	}
+	defer func() { _ = stream.Reader.Close() }()
+
+	scanner := bufio.NewScanner(stream.Reader)
+	for scanner.Scan() {
+		select {
+		case <-c.Request().Context().Done():
+			return nil
+		default:
+			line := scanner.Text()
+			line = stripDockerLogHeader(line)
+			_, _ = fmt.Fprintf(c.Response(), "data: %s\n\n", line)
+			c.Response().Flush()
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+		c.Response().Flush()
+	}
+
+	return nil
+}
+
+func stripDockerLogHeader(line string) string {
+	if len(line) < 8 {
+		return line
+	}
+	header := line[:8]
+	if (header[0] == 1 || header[0] == 2) && header[1] == 0 && header[2] == 0 && header[3] == 0 {
+		return strings.TrimPrefix(line[8:], " ")
+	}
+	return line
 }
