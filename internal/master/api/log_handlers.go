@@ -65,7 +65,7 @@ func proxyJSONResponse(c echo.Context, workerURL string) error {
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("failed to reach worker: %v", err)})
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -91,7 +91,7 @@ func proxySSEStream(c echo.Context, ctx context.Context, workerURL string) error
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("failed to reach worker: %v", err)})
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	c.Response().Header().Set("Content-Type", "text/event-stream")
 	c.Response().Header().Set("Cache-Control", "no-cache")
@@ -107,7 +107,7 @@ func proxySSEStream(c echo.Context, ctx context.Context, workerURL string) error
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
-					fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+					_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
 					c.Response().Flush()
 				}
 				return nil
