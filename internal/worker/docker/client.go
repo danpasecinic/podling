@@ -236,6 +236,23 @@ func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail 
 	return buf.String(), nil
 }
 
+func (c *Client) StreamContainerLogs(ctx context.Context, containerID string, tail int) (io.ReadCloser, error) {
+	options := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+		Tail:       fmt.Sprintf("%d", tail),
+		Timestamps: true,
+	}
+
+	reader, err := c.cli.ContainerLogs(ctx, containerID, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stream logs for container %s: %w", containerID, err)
+	}
+
+	return reader, nil
+}
+
 func (c *Client) ExecInContainer(ctx context.Context, containerID string, cmd []string) (int, string, error) {
 	execConfig := container.ExecOptions{
 		AttachStdout: true,
