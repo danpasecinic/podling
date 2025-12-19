@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -41,9 +42,8 @@ func (m *APIKeyManager) GenerateKey() (plainKey string, keyHash string, keyPrefi
 }
 
 func (m *APIKeyManager) HashKey(key string) string {
-	h := sha256.New()
+	h := hmac.New(sha256.New, m.secret)
 	h.Write([]byte(key))
-	h.Write(m.secret)
 	return hex.EncodeToString(h.Sum(nil))
 }
 
