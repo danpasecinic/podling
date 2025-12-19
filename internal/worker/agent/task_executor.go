@@ -3,12 +3,18 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 
 	"github.com/danpasecinic/podling/internal/types"
 	"github.com/danpasecinic/podling/internal/worker/docker"
 	"github.com/danpasecinic/podling/internal/worker/health"
 )
+
+type LogStream struct {
+	Reader      io.ReadCloser
+	ContainerID string
+}
 
 func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 	a.mu.Lock()
@@ -209,6 +215,31 @@ func (a *Agent) GetTaskLogs(ctx context.Context, taskID string, tail int) (strin
 	}
 
 	return a.dockerClient.GetContainerLogs(ctx, task.ContainerID, tail)
+}
+
+func (a *Agent) StreamTaskLogs(ctx context.Context, taskID string, tail int) (LogStream, error) {
+	a.mu.RLock()
+	task, ok := a.runningTasks[taskID]
+	a.mu.RUnlock()
+
+	if !ok {
+		fetchedTask, err := a.getTaskFromMaster(taskID)
+		if err != nil {
+			return LogStream{}, fmt.Errorf("task %s not found: %w", taskID, err)
+		}
+		task = fetchedTask
+	}
+
+	if task.ContainerID == "" {
+		return LogStream{}, fmt.Errorf("task %s has no associated container", taskID)
+	}
+
+	reader, err := a.dockerClient.StreamContainerLogs(ctx, task.ContainerID, tail)
+	if err != nil {
+		return LogStream{}, err
+	}
+
+	return LogStream{Reader: reader, ContainerID: task.ContainerID}, nil
 }
 
 func (a *Agent) cleanupRunningTasks(ctx context.Context) {
