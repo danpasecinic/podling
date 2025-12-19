@@ -36,6 +36,8 @@ func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1.GET("/tasks", s.ListTasks)
 	v1.GET("/tasks/:id", s.GetTask)
 	v1.PUT("/tasks/:id/status", s.UpdateTaskStatus)
+	v1.GET("/tasks/:id/logs", s.GetTaskLogs)
+	v1.GET("/tasks/:id/logs/stream", s.StreamTaskLogs)
 
 	// Pod routes
 	v1.POST("/pods", s.CreatePod)
@@ -43,6 +45,8 @@ func (s *Server) RegisterRoutes(e *echo.Echo) {
 	v1.GET("/pods/:id", s.GetPod)
 	v1.PUT("/pods/:id/status", s.UpdatePodStatus)
 	v1.DELETE("/pods/:id", s.DeletePod)
+	v1.GET("/pods/:id/logs", s.GetPodLogs)
+	v1.GET("/pods/:id/logs/stream", s.StreamPodLogs)
 
 	// Node routes
 	v1.POST("/nodes/register", s.RegisterNode)
