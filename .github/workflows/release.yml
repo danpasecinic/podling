@@ -97,14 +97,14 @@ jobs:
           fi
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*.tar.gz
           if-no-files-found: ignore
 
       - name: Upload artifacts (Windows)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: matrix.goos == 'windows'
         with:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
