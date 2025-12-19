@@ -278,11 +278,11 @@ func (s *Server) StreamTaskLogs(c echo.Context) error {
 
 	stream, err := s.agent.StreamTaskLogs(c.Request().Context(), taskID, tail)
 	if err != nil {
-		fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+		_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
 		c.Response().Flush()
 		return nil
 	}
-	defer stream.Reader.Close()
+	defer func() { _ = stream.Reader.Close() }()
 
 	scanner := bufio.NewScanner(stream.Reader)
 	for scanner.Scan() {
@@ -292,13 +292,13 @@ func (s *Server) StreamTaskLogs(c echo.Context) error {
 		default:
 			line := scanner.Text()
 			line = stripDockerLogHeader(line)
-			fmt.Fprintf(c.Response(), "data: %s\n\n", line)
+			_, _ = fmt.Fprintf(c.Response(), "data: %s\n\n", line)
 			c.Response().Flush()
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+		_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
 		c.Response().Flush()
 	}
 
@@ -324,11 +324,11 @@ func (s *Server) StreamPodLogs(c echo.Context) error {
 
 	stream, err := s.agent.StreamPodLogs(c.Request().Context(), podID, containerName, tail)
 	if err != nil {
-		fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+		_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
 		c.Response().Flush()
 		return nil
 	}
-	defer stream.Reader.Close()
+	defer func() { _ = stream.Reader.Close() }()
 
 	scanner := bufio.NewScanner(stream.Reader)
 	for scanner.Scan() {
@@ -338,13 +338,13 @@ func (s *Server) StreamPodLogs(c echo.Context) error {
 		default:
 			line := scanner.Text()
 			line = stripDockerLogHeader(line)
-			fmt.Fprintf(c.Response(), "data: %s\n\n", line)
+			_, _ = fmt.Fprintf(c.Response(), "data: %s\n\n", line)
 			c.Response().Flush()
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
+		_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: %s\n\n", err.Error())
 		c.Response().Flush()
 	}
 
