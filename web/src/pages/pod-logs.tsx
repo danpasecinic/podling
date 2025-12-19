@@ -107,7 +107,10 @@ export function PodLogs() {
                 Start Streaming
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={() => { clearLogs(); connect() }}>
+            <Button variant="outline" size="sm" onClick={() => {
+              clearLogs();
+              connect()
+            }}>
               <RotateCcw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
