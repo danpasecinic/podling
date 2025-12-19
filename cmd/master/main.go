@@ -70,7 +70,7 @@ func main() {
 	authMiddleware.SetSkipSuffixes("/status")
 
 	e := echo.New()
-	e.Use(middleware.Logger())
+	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 	e.Use(
 		middleware.CORSWithConfig(

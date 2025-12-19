@@ -67,7 +67,7 @@ func main() {
 	server := agent.NewServer(*nodeID, *hostname, *port, workerAgent)
 
 	e := echo.New()
-	e.Use(middleware.Logger())
+	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 
