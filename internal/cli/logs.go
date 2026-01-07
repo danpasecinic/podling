@@ -18,7 +18,7 @@ var logsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 
 		task, err := client.GetTask(taskID)
 		if err != nil {

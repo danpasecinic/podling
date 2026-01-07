@@ -92,7 +92,7 @@ Port format: [name:]port[:targetPort]
 			ports = append(ports, port)
 		}
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		service, err := client.CreateService(serviceName, serviceCreateNamespace, selector, ports, labels, serviceType, serviceSessionAffinity)
 		if err != nil {
 			return fmt.Errorf("failed to create service: %w", err)
@@ -143,7 +143,7 @@ var serviceListCmd = &cobra.Command{
 	Short: "List all services",
 	Long:  `List all services, optionally filtered by namespace.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		services, err := client.ListServices(serviceCreateNamespace)
 		if err != nil {
 			return fmt.Errorf("failed to list services: %w", err)
@@ -193,7 +193,7 @@ var serviceGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		serviceID := args[0]
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 
 		// Get service
 		service, err := client.GetService(serviceID)
@@ -277,7 +277,7 @@ var serviceDeleteCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		serviceID := args[0]
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		if err := client.DeleteService(serviceID); err != nil {
 			return fmt.Errorf("failed to delete service: %w", err)
 		}

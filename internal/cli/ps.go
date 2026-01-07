@@ -18,7 +18,7 @@ var psCmd = &cobra.Command{
 	Short: "List tasks",
 	Long:  `List all tasks or get details of a specific task.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 
 		if psTaskID != "" {
 			task, err := client.GetTask(psTaskID)
