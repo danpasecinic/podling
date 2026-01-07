@@ -50,29 +50,88 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 	return c.httpClient.Do(req)
 }
 
-func (c *Client) get(url string) (*http.Response, error) {
+func (c *Client) checkResponse(resp *http.Response, allowedStatuses ...int) error {
+	if len(allowedStatuses) == 0 {
+		allowedStatuses = []int{http.StatusOK}
+	}
+	for _, status := range allowedStatuses {
+		if resp.StatusCode == status {
+			return nil
+		}
+	}
+	body, _ := io.ReadAll(resp.Body)
+	return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+}
+
+func (c *Client) getJSON(url string, result interface{}) error {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("create request: %w", err)
 	}
-	return c.doRequest(req)
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return fmt.Errorf("get request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if err := c.checkResponse(resp); err != nil {
+		return err
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+	return nil
 }
 
-func (c *Client) post(url string, body io.Reader) (*http.Response, error) {
+func (c *Client) postJSON(url string, payload, result interface{}) error {
+	var body io.Reader
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("marshal request: %w", err)
+		}
+		body = bytes.NewReader(data)
+	}
+
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	return c.doRequest(req)
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return fmt.Errorf("post request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if err := c.checkResponse(resp, http.StatusOK, http.StatusCreated); err != nil {
+		return err
+	}
+
+	if result != nil {
+		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
+	}
+	return nil
 }
 
-func (c *Client) delete(url string) (*http.Response, error) {
+func (c *Client) deleteRequest(url string) error {
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("create request: %w", err)
 	}
-	return c.doRequest(req)
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return fmt.Errorf("delete request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	return c.checkResponse(resp)
 }
 
 func (c *Client) CreateTask(name, image string, env map[string]string) (*types.Task, error) {
@@ -82,27 +141,10 @@ func (c *Client) CreateTask(name, image string, env map[string]string) (*types.T
 		"env":   env,
 	}
 
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	resp, err := c.post(c.baseURL+"/api/v1/tasks", bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("post request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var task types.Task
-	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.postJSON(c.baseURL+"/api/v1/tasks", payload, &task); err != nil {
+		return nil, err
 	}
-
 	return &task, nil
 }
 
@@ -110,6 +152,26 @@ func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, 
 	*types.Task,
 	error,
 ) {
+	ports, err := parsePortSpecs(portSpecs)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := map[string]interface{}{
+		"name":  name,
+		"image": image,
+		"env":   env,
+		"ports": ports,
+	}
+
+	var task types.Task
+	if err := c.postJSON(c.baseURL+"/api/v1/tasks", payload, &task); err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+func parsePortSpecs(portSpecs []string) ([]types.ContainerPort, error) {
 	var ports []types.ContainerPort
 	for _, portSpec := range portSpecs {
 		parts := strings.Split(portSpec, ":")
@@ -135,95 +197,30 @@ func (c *Client) CreateTaskWithPorts(name, image string, env map[string]string, 
 			},
 		)
 	}
-
-	payload := map[string]interface{}{
-		"name":  name,
-		"image": image,
-		"env":   env,
-		"ports": ports,
-	}
-
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	resp, err := c.post(c.baseURL+"/api/v1/tasks", bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("post request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var task types.Task
-	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	return &task, nil
+	return ports, nil
 }
 
 func (c *Client) ListTasks() ([]types.Task, error) {
-	resp, err := c.get(c.baseURL + "/api/v1/tasks")
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var tasks []types.Task
-	if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(c.baseURL+"/api/v1/tasks", &tasks); err != nil {
+		return nil, err
 	}
-
 	return tasks, nil
 }
 
 func (c *Client) GetTask(taskID string) (*types.Task, error) {
-	resp, err := c.get(c.baseURL + "/api/v1/tasks/" + taskID)
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var task types.Task
-	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(c.baseURL+"/api/v1/tasks/"+taskID, &task); err != nil {
+		return nil, err
 	}
-
 	return &task, nil
 }
 
 func (c *Client) ListNodes() ([]types.Node, error) {
-	resp, err := c.get(c.baseURL + "/api/v1/nodes")
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var nodes []types.Node
-	if err := json.NewDecoder(resp.Body).Decode(&nodes); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(c.baseURL+"/api/v1/nodes", &nodes); err != nil {
+		return nil, err
 	}
-
 	return nodes, nil
 }
 
@@ -238,52 +235,26 @@ func (c *Client) GetNode(nodeID string) (*types.Node, error) {
 			return &node, nil
 		}
 	}
-
 	return nil, fmt.Errorf("node %s not found", nodeID)
 }
 
 func (c *Client) GetTaskLogs(task *types.Task, tail int) (string, error) {
-	// Get the node to find the worker URL
-	nodes, err := c.ListNodes()
+	node, err := c.GetNode(task.NodeID)
 	if err != nil {
-		return "", fmt.Errorf("list nodes: %w", err)
+		return "", fmt.Errorf("worker node not found: %w", err)
 	}
 
-	var workerURL string
-	for _, node := range nodes {
-		if node.NodeID == task.NodeID {
-			workerURL = fmt.Sprintf("http://%s:%d", node.Hostname, node.Port)
-			break
-		}
-	}
-
-	if workerURL == "" {
-		return "", fmt.Errorf("worker node not found: %s", task.NodeID)
-	}
-
-	// Get logs from worker
-	url := fmt.Sprintf("%s/api/v1/tasks/%s/logs?tail=%d", workerURL, task.TaskID, tail)
-	resp, err := c.get(url)
-	if err != nil {
-		return "", fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
+	url := fmt.Sprintf("http://%s:%d/api/v1/tasks/%s/logs?tail=%d", node.Hostname, node.Port, task.TaskID, tail)
 
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(url, &result); err != nil {
+		return "", err
 	}
 
 	logs, ok := result["logs"].(string)
 	if !ok {
 		return "", fmt.Errorf("invalid logs format in response")
 	}
-
 	return logs, nil
 }
 
@@ -295,76 +266,33 @@ func (c *Client) CreatePod(name, namespace string, labels map[string]string, con
 		"name":       name,
 		"containers": containers,
 	}
-
 	if namespace != "" {
 		payload["namespace"] = namespace
 	}
-
 	if len(labels) > 0 {
 		payload["labels"] = labels
 	}
 
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	resp, err := c.post(c.baseURL+"/api/v1/pods", bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("post request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var pod types.Pod
-	if err := json.NewDecoder(resp.Body).Decode(&pod); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.postJSON(c.baseURL+"/api/v1/pods", payload, &pod); err != nil {
+		return nil, err
 	}
-
 	return &pod, nil
 }
 
 func (c *Client) ListPods() ([]types.Pod, error) {
-	resp, err := c.get(c.baseURL + "/api/v1/pods")
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var pods []types.Pod
-	if err := json.NewDecoder(resp.Body).Decode(&pods); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(c.baseURL+"/api/v1/pods", &pods); err != nil {
+		return nil, err
 	}
-
 	return pods, nil
 }
 
 func (c *Client) GetPod(podID string) (*types.Pod, error) {
-	resp, err := c.get(c.baseURL + "/api/v1/pods/" + podID)
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var pod types.Pod
-	if err := json.NewDecoder(resp.Body).Decode(&pod); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(c.baseURL+"/api/v1/pods/"+podID, &pod); err != nil {
+		return nil, err
 	}
-
 	return &pod, nil
 }
 
@@ -388,89 +316,45 @@ func (c *Client) GetPodLogs(podID string, containerName string, tail int) (map[s
 		url += "&container=" + containerName
 	}
 
-	resp, err := c.get(url)
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var result struct {
 		Logs map[string]string `json:"logs"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(url, &result); err != nil {
+		return nil, err
 	}
-
 	return result.Logs, nil
 }
 
 func (c *Client) DeletePod(podID string) error {
-	resp, err := c.delete(c.baseURL + "/api/v1/pods/" + podID)
-	if err != nil {
-		return fmt.Errorf("delete request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return c.deleteRequest(c.baseURL + "/api/v1/pods/" + podID)
 }
 
 func (c *Client) CreateService(
-	name, namespace string, selector map[string]string, ports []types.ServicePort, labels map[string]string,
-	serviceType, sessionAffinity string,
+	name, namespace string, selector map[string]string, ports []types.ServicePort,
+	labels map[string]string, serviceType, sessionAffinity string,
 ) (*types.Service, error) {
 	payload := map[string]interface{}{
 		"name":     name,
 		"selector": selector,
 		"ports":    ports,
 	}
-
 	if namespace != "" {
 		payload["namespace"] = namespace
 	}
-
 	if len(labels) > 0 {
 		payload["labels"] = labels
 	}
-
 	if serviceType != "" {
 		payload["type"] = serviceType
 	}
-
 	if sessionAffinity != "" {
 		payload["sessionAffinity"] = sessionAffinity
 	}
 
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	resp, err := c.post(c.baseURL+"/api/v1/services", bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("post request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var service types.Service
-	if err := json.NewDecoder(resp.Body).Decode(&service); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.postJSON(c.baseURL+"/api/v1/services", payload, &service); err != nil {
+		return nil, err
 	}
-
 	return &service, nil
 }
 
@@ -480,117 +364,46 @@ func (c *Client) ListServices(namespace string) ([]types.Service, error) {
 		url += "?namespace=" + namespace
 	}
 
-	resp, err := c.get(url)
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var services []types.Service
-	if err := json.NewDecoder(resp.Body).Decode(&services); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(url, &services); err != nil {
+		return nil, err
 	}
-
 	return services, nil
 }
 
 func (c *Client) GetService(serviceID string) (*types.Service, error) {
-	resp, err := c.get(c.baseURL + "/api/v1/services/" + serviceID)
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var service types.Service
-	if err := json.NewDecoder(resp.Body).Decode(&service); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(c.baseURL+"/api/v1/services/"+serviceID, &service); err != nil {
+		return nil, err
 	}
-
 	return &service, nil
 }
 
 func (c *Client) GetEndpoints(serviceID string) (*types.Endpoints, error) {
-	resp, err := c.get(c.baseURL + "/api/v1/services/" + serviceID + "/endpoints")
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var endpoints types.Endpoints
-	if err := json.NewDecoder(resp.Body).Decode(&endpoints); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(c.baseURL+"/api/v1/services/"+serviceID+"/endpoints", &endpoints); err != nil {
+		return nil, err
 	}
-
 	return &endpoints, nil
 }
 
 func (c *Client) DeleteService(serviceID string) error {
-	resp, err := c.delete(c.baseURL + "/api/v1/services/" + serviceID)
-	if err != nil {
-		return fmt.Errorf("delete request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return c.deleteRequest(c.baseURL + "/api/v1/services/" + serviceID)
 }
 
 func (c *Client) Prune() (*types.PruneResult, error) {
-	resp, err := c.post(c.baseURL+"/api/v1/prune", nil)
-	if err != nil {
-		return nil, fmt.Errorf("prune request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var result types.PruneResult
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.postJSON(c.baseURL+"/api/v1/prune", nil, &result); err != nil {
+		return nil, err
 	}
-
 	return &result, nil
 }
 
 func (c *Client) PruneAll() (*types.PruneResult, error) {
-	resp, err := c.post(c.baseURL+"/api/v1/prune?all=true", nil)
-	if err != nil {
-		return nil, fmt.Errorf("prune request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var result types.PruneResult
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.postJSON(c.baseURL+"/api/v1/prune?all=true", nil, &result); err != nil {
+		return nil, err
 	}
-
 	return &result, nil
 }
 
@@ -639,26 +452,13 @@ func (c *Client) Login(username, password string) (*LoginResponse, error) {
 	}
 
 	c.token = loginResp.Token
-
 	return &loginResp, nil
 }
 
 func (c *Client) GetCurrentUser() (map[string]interface{}, error) {
-	resp, err := c.get(c.baseURL + "/api/v1/auth/me")
-	if err != nil {
-		return nil, fmt.Errorf("get request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-
 	var userInfo map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.getJSON(c.baseURL+"/api/v1/auth/me", &userInfo); err != nil {
+		return nil, err
 	}
-
 	return userInfo, nil
 }
