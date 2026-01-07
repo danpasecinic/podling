@@ -40,7 +40,7 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		task, err := client.CreateTaskWithPorts(name, runImage, envMap, runPorts)
 		if err != nil {
 			return fmt.Errorf("failed to create task: %w", err)

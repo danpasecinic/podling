@@ -15,7 +15,7 @@ var nodesCmd = &cobra.Command{
 	Short: "List worker nodes",
 	Long:  `List all registered worker nodes and their status.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 
 		nodes, err := client.ListNodes()
 		if err != nil {

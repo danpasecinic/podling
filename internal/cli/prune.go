@@ -30,7 +30,7 @@ By default, removes:
 
 Use --all to remove everything including Docker containers and networks.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		apiClient := NewClient(GetMasterURL())
+		apiClient := NewAuthenticatedClient()
 
 		var result *PruneResult
 		var err error

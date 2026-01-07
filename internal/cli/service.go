@@ -92,8 +92,10 @@ Port format: [name:]port[:targetPort]
 			ports = append(ports, port)
 		}
 
-		client := NewClient(GetMasterURL())
-		service, err := client.CreateService(serviceName, serviceCreateNamespace, selector, ports, labels, serviceType, serviceSessionAffinity)
+		client := NewAuthenticatedClient()
+		service, err := client.CreateService(
+			serviceName, serviceCreateNamespace, selector, ports, labels, serviceType, serviceSessionAffinity,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to create service: %w", err)
 		}
@@ -143,7 +145,7 @@ var serviceListCmd = &cobra.Command{
 	Short: "List all services",
 	Long:  `List all services, optionally filtered by namespace.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		services, err := client.ListServices(serviceCreateNamespace)
 		if err != nil {
 			return fmt.Errorf("failed to list services: %w", err)
@@ -172,7 +174,8 @@ var serviceListCmd = &cobra.Command{
 
 			ports := formatServicePorts(svc.Ports)
 
-			fmt.Printf("%-20s %-15s %-10s %-15s %-40s\n",
+			fmt.Printf(
+				"%-20s %-15s %-10s %-15s %-40s\n",
 				truncate(svc.Name, 20),
 				truncate(namespace, 15),
 				string(svc.Type),
@@ -193,22 +196,19 @@ var serviceGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		serviceID := args[0]
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 
-		// Get service
 		service, err := client.GetService(serviceID)
 		if err != nil {
 			return fmt.Errorf("failed to get service: %w", err)
 		}
 
-		// Get endpoints
 		endpoints, err := client.GetEndpoints(serviceID)
 		if err != nil {
 			// Non-fatal, service might not have endpoints yet
 			endpoints = nil
 		}
 
-		// Print service details
 		fmt.Printf("Service: %s\n", service.Name)
 		fmt.Printf("  ID:         %s\n", service.ServiceID)
 		fmt.Printf("  Namespace:  %s\n", service.Namespace)
@@ -244,7 +244,6 @@ var serviceGetCmd = &cobra.Command{
 			}
 		}
 
-		// Print endpoints
 		if endpoints != nil && endpoints.HasEndpoints() {
 			fmt.Println("\nEndpoints:")
 			for _, subset := range endpoints.Subsets {
@@ -277,7 +276,7 @@ var serviceDeleteCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		serviceID := args[0]
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		if err := client.DeleteService(serviceID); err != nil {
 			return fmt.Errorf("failed to delete service: %w", err)
 		}
@@ -296,11 +295,21 @@ func init() {
 	serviceCmd.AddCommand(serviceDeleteCmd)
 
 	serviceCreateCmd.Flags().StringVar(&serviceCreateNamespace, "namespace", "default", "Namespace for the service")
-	serviceCreateCmd.Flags().StringSliceVar(&serviceCreateLabels, "label", []string{}, "Labels for the service (can be specified multiple times)")
-	serviceCreateCmd.Flags().StringSliceVar(&serviceCreateSelectors, "selector", []string{}, "Pod selector (can be specified multiple times)")
-	serviceCreateCmd.Flags().StringSliceVar(&servicePorts, "port", []string{}, "Service ports (can be specified multiple times)")
-	serviceCreateCmd.Flags().StringVar(&serviceType, "type", "ClusterIP", "Service type (ClusterIP, NodePort, LoadBalancer)")
-	serviceCreateCmd.Flags().StringVar(&serviceSessionAffinity, "session-affinity", "", "Session affinity (None or ClientIP)")
+	serviceCreateCmd.Flags().StringSliceVar(
+		&serviceCreateLabels, "label", []string{}, "Labels for the service (can be specified multiple times)",
+	)
+	serviceCreateCmd.Flags().StringSliceVar(
+		&serviceCreateSelectors, "selector", []string{}, "Pod selector (can be specified multiple times)",
+	)
+	serviceCreateCmd.Flags().StringSliceVar(
+		&servicePorts, "port", []string{}, "Service ports (can be specified multiple times)",
+	)
+	serviceCreateCmd.Flags().StringVar(
+		&serviceType, "type", "ClusterIP", "Service type (ClusterIP, NodePort, LoadBalancer)",
+	)
+	serviceCreateCmd.Flags().StringVar(
+		&serviceSessionAffinity, "session-affinity", "", "Session affinity (None or ClientIP)",
+	)
 
 	serviceListCmd.Flags().StringVar(&serviceCreateNamespace, "namespace", "", "Filter by namespace (empty for all)")
 }

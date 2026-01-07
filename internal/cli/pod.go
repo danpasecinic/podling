@@ -81,7 +81,7 @@ Port format: [containerName:]hostPort:containerPort
 			return fmt.Errorf("failed to apply port mappings: %w", err)
 		}
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		pod, err := client.CreatePod(podName, podCreateNamespace, labels, containers)
 		if err != nil {
 			return fmt.Errorf("failed to create pod: %w", err)
@@ -120,7 +120,7 @@ var podListCmd = &cobra.Command{
 	Short: "List all pods",
 	Long:  `List all pods in the system.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		pods, err := client.ListPods()
 		if err != nil {
 			return fmt.Errorf("failed to list pods: %w", err)
@@ -169,7 +169,7 @@ var podGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		podID := args[0]
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		pod, err := client.GetPod(podID)
 		if err != nil {
 			return fmt.Errorf("failed to get pod: %w", err)
@@ -243,7 +243,7 @@ var podDeleteCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		podID := args[0]
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		if err := client.DeletePod(podID); err != nil {
 			return fmt.Errorf("failed to delete pod: %w", err)
 		}
@@ -347,7 +347,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		podID := args[0]
 
-		client := NewClient(GetMasterURL())
+		client := NewAuthenticatedClient()
 		logs, err := client.GetPodLogs(podID, podLogsContainer, podLogsTail)
 		if err != nil {
 			return fmt.Errorf("failed to get pod logs: %w", err)
