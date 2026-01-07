@@ -93,23 +93,27 @@ func (m *Middleware) Authenticate() echo.MiddlewareFunc {
 
 			authHeader := c.Request().Header.Get("Authorization")
 			apiKeyHeader := c.Request().Header.Get("X-API-Key")
+			tokenParam := c.QueryParam("token")
 
-			if authHeader == "" && apiKeyHeader == "" {
+			if authHeader == "" && apiKeyHeader == "" && tokenParam == "" {
 				return echo.NewHTTPError(http.StatusUnauthorized, "missing authentication")
 			}
 
 			var authCtx *AuthContext
 			var err error
 
-			if apiKeyHeader != "" {
+			switch {
+			case apiKeyHeader != "":
 				authCtx, err = m.validateAPIKey(apiKeyHeader)
-			} else if strings.HasPrefix(authHeader, "Bearer ") {
+			case strings.HasPrefix(authHeader, "Bearer "):
 				token := strings.TrimPrefix(authHeader, "Bearer ")
 				authCtx, err = m.validateJWT(token)
-			} else if strings.HasPrefix(authHeader, "ApiKey ") {
+			case strings.HasPrefix(authHeader, "ApiKey "):
 				key := strings.TrimPrefix(authHeader, "ApiKey ")
 				authCtx, err = m.validateAPIKey(key)
-			} else {
+			case tokenParam != "":
+				authCtx, err = m.validateJWT(tokenParam)
+			default:
 				return echo.NewHTTPError(http.StatusBadRequest, "invalid authorization header format")
 			}
 

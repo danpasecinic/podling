@@ -46,7 +46,8 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 	var containerID string
 	var err error
 
-	if len(task.Ports) > 0 {
+	switch {
+	case len(task.Ports) > 0:
 		ports := make([]docker.PortMapping, len(task.Ports))
 		for i, port := range task.Ports {
 			ports[i] = docker.PortMapping{
@@ -55,22 +56,20 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 				Protocol:      port.Protocol,
 			}
 		}
-
 		cpuLimit := float64(0)
 		memoryLimit := int64(0)
 		if !task.Resources.Limits.IsZero() {
 			cpuLimit = task.Resources.Limits.GetCPULimitForDocker()
 			memoryLimit = task.Resources.Limits.GetMemoryLimitForDocker()
 		}
-
 		containerID, err = a.dockerClient.CreateContainerWithResourcesAndPorts(
 			ctx, task.Image, env, cpuLimit, memoryLimit, ports,
 		)
-	} else if !task.Resources.Limits.IsZero() {
+	case !task.Resources.Limits.IsZero():
 		cpuLimit := task.Resources.Limits.GetCPULimitForDocker()
 		memoryLimit := task.Resources.Limits.GetMemoryLimitForDocker()
 		containerID, err = a.dockerClient.CreateContainerWithResources(ctx, task.Image, env, cpuLimit, memoryLimit)
-	} else {
+	default:
 		containerID, err = a.dockerClient.CreateContainer(ctx, task.Image, env)
 	}
 
@@ -87,6 +86,10 @@ func (a *Agent) ExecuteTask(ctx context.Context, task *types.Task) error {
 		}
 		return fmt.Errorf("failed to start container: %w", err)
 	}
+
+	a.mu.Lock()
+	task.ContainerID = containerID
+	a.mu.Unlock()
 
 	if err := a.updateTaskStatus(task.TaskID, types.TaskRunning, containerID, ""); err != nil {
 		log.Printf("failed to update task with container ID: %v", err)

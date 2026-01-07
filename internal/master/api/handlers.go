@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -279,6 +280,7 @@ func (s *Server) scheduleTask(taskID string) error {
 func (s *Server) triggerTaskExecution(taskID string, node types.Node) {
 	task, err := s.store.GetTask(taskID)
 	if err != nil {
+		log.Printf("triggerTaskExecution: failed to get task %s: %v", taskID, err)
 		return
 	}
 
@@ -302,7 +304,12 @@ func (s *Server) triggerTaskExecution(taskID string, node types.Node) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("triggerTaskExecution: failed to call worker: %v", err)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		log.Printf("triggerTaskExecution: worker returned status %d", resp.StatusCode)
+	}
 }
