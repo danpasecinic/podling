@@ -348,7 +348,7 @@ func (s *PostgresStateStore) ListPodsByLabels(namespace string, labels map[strin
 	var pods []types.Pod
 	for rows.Next() {
 		var pod types.Pod
-		var ns, nodeID, message, reason sql.NullString
+		var ns, nodeID, restartPolicy, message, reason sql.NullString
 		var scheduledAt, startedAt, finishedAt sql.NullTime
 		var labelsJSON, annotationsJSON, containersJSON []byte
 
@@ -361,7 +361,7 @@ func (s *PostgresStateStore) ListPodsByLabels(namespace string, labels map[strin
 			&containersJSON,
 			&pod.Status,
 			&nodeID,
-			&pod.RestartPolicy,
+			&restartPolicy,
 			&pod.CreatedAt,
 			&scheduledAt,
 			&startedAt,
@@ -378,6 +378,9 @@ func (s *PostgresStateStore) ListPodsByLabels(namespace string, labels map[strin
 		}
 		if nodeID.Valid {
 			pod.NodeID = nodeID.String
+		}
+		if restartPolicy.Valid {
+			pod.RestartPolicy = types.RestartPolicy(restartPolicy.String)
 		}
 		if message.Valid {
 			pod.Message = message.String

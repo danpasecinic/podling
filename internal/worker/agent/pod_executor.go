@@ -159,6 +159,9 @@ func (a *Agent) createPodContainers(ctx context.Context, pod *types.Pod, executi
 
 		container.ContainerID = containerID
 		container.Status = types.ContainerRunning
+		if container.LivenessProbe == nil {
+			container.HealthStatus = types.HealthStatusHealthy
+		}
 
 		if err := a.startContainer(ctx, pod, container, execution); err != nil {
 			return err
